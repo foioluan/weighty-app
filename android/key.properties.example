@@ -1,0 +1,26 @@
+# Modelo. Copie para `key.properties` (no mesmo diretório) e preencha as senhas.
+#
+#   cp android/key.properties.example android/key.properties
+#
+# O arquivo `key.properties` está no .gitignore e nunca é versionado.
+# O `key.properties.example` existe só como modelo — o Gradle ignora este
+# arquivo e só lê o `key.properties` de verdade.
+#
+# Enquanto `key.properties` não existir, o build de release usa a chave de
+# debug do Android e funciona normalmente.
+
+# Caminho absoluto do arquivo gerado pelo keytool. Troque <voce> pelo seu
+# usuário do Mac (luan).
+storeFile=/Users/<voce>/treino-upload.jks
+
+# A senha que você digitou no primeiro prompt do keytool
+# ("Enter keystore password").
+storePassword=
+
+# O alias passado no comando (-alias treino).
+keyAlias=treino
+
+# A senha da chave. Se você apenas apertou Enter quando o keytool perguntou
+# "Enter key password for <treino>", ela é igual à storePassword — repita o
+# mesmo valor aqui.
+keyPassword=
