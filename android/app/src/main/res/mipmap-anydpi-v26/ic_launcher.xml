@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone adaptativo: o Android recorta o par fundo/frente com a máscara que o
+     aparelho usa (círculo, quadrado arredondado, gota). Por isso o símbolo só
+     ocupa os 72 dp centrais dos 108 — o resto pode ser cortado.
+
+     Todos os PNGs saem de `flutter test tool/gen_icon.dart`, que pinta o mesmo
+     painter da marca em lib/app/design/brand.dart. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <!-- Android 13+: quando o usuário liga o ícone temático, o sistema tinge
+         esta silhueta com a cor do papel de parede. -->
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>
