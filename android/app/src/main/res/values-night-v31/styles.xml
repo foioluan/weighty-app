@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Este arquivo é obrigatório e não redundante: na ordem de qualificadores do
+     Android o modo noturno vem **antes** da versão de plataforma, então num
+     aparelho escuro com Android 12+ o `values-night` venceria o `values-v31` e
+     o `windowSplashScreenBackground` nunca seria aplicado. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">
+            @color/splash_background
+        </item>
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>

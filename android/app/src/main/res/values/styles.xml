@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema da janela enquanto o processo sobe, com o modo escuro do sistema
+         desligado. O fundo é a cor do app em vez de branco genérico, para o
+         quadro do sistema e o primeiro quadro do Flutter serem iguais. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+    <!-- Tema aplicado logo que o processo inicia, e que fica atrás da UI do
+         Flutter enquanto ela desenha. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 em diante o sistema desenha a abertura por conta própria, e
+     `windowBackground` deixa de ser respeitado: quem manda é
+     `windowSplashScreenBackground`, com o ícone adaptativo no meio.
+     A cor continua vindo de @color/splash_background, que já tem variante
+     escura — então este arquivo serve aos dois modos. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">
+            @color/splash_background
+        </item>
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>
