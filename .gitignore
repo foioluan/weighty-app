@@ -46,3 +46,6 @@ app.*.map.json
 
 # APK entregue na raiz para instalar no celular — é artefato de build, não fonte.
 /*.apk
+
+# Banco de demonstração gerado por tool/seed_demo.dart
+*.sqlite

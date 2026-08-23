@@ -17,6 +17,12 @@ de cada um. Ao iniciar uma sessão, cada campo de carga já vem com o valor da
 última vez em cinza — concluir a série sem digitar nada repete aquele valor.
 Assim que a série é concluída, aparece o delta (`+2,5 kg vs 67,5 × 9`).
 
+Trocar um exercício de lugar não custa recomeçar: o menu `⋯` do card tem
+**Substituir exercício**, que mantém as séries já configuradas. Isso vale porque
+as séries planejadas penduram no vínculo entre treino e exercício, não no
+exercício em si — e porque a sessão copia o exercício para si mesma quando
+começa, então o histórico antigo continua no exercício antigo.
+
 ### Tipos de série
 
 Toda série é uma lista ordenada de segmentos `(carga, reps)`:
@@ -111,11 +117,38 @@ próprio e as telas importam só `design/design.dart`.
 - **Componentes próprios** no lugar dos padrões: `AppToast` (SnackBar),
   `showAppDialog` (AlertDialog, no formato de alerta do iOS), `InsetGroup` +
   `AppRow` (lista agrupada), `AppSegmented`, `AppChip`, `NumberCell`.
+- **O aviso é uma pílula**, não uma barra: `AppToast` abraça o texto, centrado
+  na base, com o mesmo raio do botão. Toque ou arrasto para baixo dispensam na
+  hora — esperar os 3 s era a única saída antes. Quem tem barra embaixo informa
+  o espaço a reservar pelo `ToastInset`; sem isso o toast nascia atrás da barra
+  de abas, porque ele mora no Overlay da raiz e não enxerga a tela.
+- **Todo texto fora de uma tela precisa de um `Material` acima.** Sem ele o
+  Flutter desenha o sublinhado amarelo duplo de "faltou Material" — inclusive em
+  build release, no aparelho. Já apareceu na abertura e no toast; hoje o
+  diálogo, a folha, o toast e o card arrastado do editor têm o seu, e há teste
+  de regressão para os dois últimos.
 
 Os rótulos de coluna vivem em `ColumnHeader`, nunca dentro das células. Foi o
 que corrigiu o desalinhamento entre carga e repetições: um rótulo embaixo do
 campo faz a coluna crescer e, numa `Row` centralizada, empurra o input para
 cima.
+
+### Editor de treino
+
+Cada série é um **chip**, não uma linha. Um exercício de 4×10 virava quatro
+linhas quase idênticas repetindo a palavra "Normal" — a maior massa visual da
+tela e a de menor informação. Em chip, o treino inteiro cabe numa tela e "4×10"
+se lê de relance. A cor carrega o tipo: aquecimento só com contorno (não conta
+para indicador nenhum), drop e cluster tingidos, normais em superfície de campo.
+
+As ações por exercício moram todas no `⋯` — substituir, duplicar a última série,
+remover. Antes eram um X no cabeçalho mais dois botões de texto no rodapé de
+**cada** card: com seis exercícios, doze botões na tela. Remover agora confirma,
+como já fazia excluir treino.
+
+Reordenar é por **toque longo** no card, sem pegador visível, e o card arrastado
+só cresce 3% — o `proxyDecorator` padrão do `ReorderableListView` embrulha o item
+num Material com elevação, que é exatamente a sombra que denuncia Android padrão.
 
 ### Marca
 
