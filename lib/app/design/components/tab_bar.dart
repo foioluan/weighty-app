@@ -21,6 +21,10 @@ class AppTabItem {
 /// que estávamos tentando sair. Este tem 54 px, hairline no topo e marca a aba
 /// ativa só por cor e peso.
 class AppTabBar extends StatelessWidget {
+  /// Altura da barra sem a área segura. Pública porque a casca precisa dela
+  /// para dizer ao toast quanto espaço reservar na base.
+  static const height = 54.0;
+
   const AppTabBar({
     super.key,
     required this.items,
@@ -44,7 +48,7 @@ class AppTabBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 54,
+          height: height,
           child: Row(
             children: [
               for (var i = 0; i < items.length; i++)

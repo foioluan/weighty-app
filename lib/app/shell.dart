@@ -41,29 +41,35 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: context.colors.bg,
-      body: navigationShell,
-      bottomNavigationBar: AppTabBar(
-        items: tabs,
-        currentIndex: navigationShell.currentIndex,
-        onTap: (index) {
-          Haptics.tick();
-          // A aba guarda o estado dela (é o ponto da casca), mas o filtro de
-          // busca é a exceção: abrir a lista de exercícios sempre começa
-          // limpa, senão a lista aparece cortada por uma busca antiga.
-          // Entrar num exercício e voltar não passa por aqui, então o filtro
-          // sobrevive à navegação dentro da própria aba.
-          if (index == _catalogTab) {
-            ref.invalidate(catalogSearchProvider);
-            ref.invalidate(catalogGroupProvider);
-          }
-          navigationShell.goBranch(
-            index,
-            // Tocar na aba já ativa volta para a raiz dela.
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
+    // O toast mora no Overlay da raiz e não enxerga a barra de abas; sem este
+    // aviso ele aparecia atrás dela nas quatro telas com abas. A leitura da
+    // área segura é feita aqui porque o Scaffold a consome para o corpo.
+    return ToastInset(
+      bottom: AppTabBar.height + MediaQuery.paddingOf(context).bottom,
+      child: Scaffold(
+        backgroundColor: context.colors.bg,
+        body: navigationShell,
+        bottomNavigationBar: AppTabBar(
+          items: tabs,
+          currentIndex: navigationShell.currentIndex,
+          onTap: (index) {
+            Haptics.tick();
+            // A aba guarda o estado dela (é o ponto da casca), mas o filtro de
+            // busca é a exceção: abrir a lista de exercícios sempre começa
+            // limpa, senão a lista aparece cortada por uma busca antiga.
+            // Entrar num exercício e voltar não passa por aqui, então o filtro
+            // sobrevive à navegação dentro da própria aba.
+            if (index == _catalogTab) {
+              ref.invalidate(catalogSearchProvider);
+              ref.invalidate(catalogGroupProvider);
+            }
+            navigationShell.goBranch(
+              index,
+              // Tocar na aba já ativa volta para a raiz dela.
+              initialLocation: index == navigationShell.currentIndex,
+            );
+          },
+        ),
       ),
     );
   }

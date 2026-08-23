@@ -238,8 +238,10 @@ void main() {
       expect(sets.every((s) => !s.completed), isTrue);
 
       // Passado o tempo do toast, ele sai sozinho — e o timer dele não fica
-      // pendente no fim do teste.
+      // pendente no fim do teste. O `settle` extra é a animação de saída: o
+      // toast some com um fade curto, não num quadro só.
       await tester.pump(const Duration(seconds: 4));
+      await settle(tester);
       expect(find.text('Informe as repetições da série.'), findsNothing);
 
       await teardownTree(tester);

@@ -177,6 +177,10 @@ Future<void> deleteSession(
   WidgetRef ref,
   int sessionId,
 ) async {
+  // A linha desaparece assim que o banco reemite a lista, então o contexto
+  // dela já está morto quando chega a hora de avisar — e o aviso não aparecia.
+  final toast = AppToast.capture(context);
+
   await ref.read(sessionRepositoryProvider).delete(sessionId);
 
   ref.invalidate(routineSummariesProvider);
@@ -194,7 +198,5 @@ Future<void> deleteSession(
   // deixa de ser a marca a bater.
   ref.invalidate(sessionShareProvider);
 
-  if (context.mounted) {
-    AppToast.show(context, 'Sessão excluída.', kind: ToastKind.success);
-  }
+  toast.show('Sessão excluída.', kind: ToastKind.success);
 }

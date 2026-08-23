@@ -214,12 +214,12 @@ class _ExerciseRow extends ConsumerWidget {
         ),
       ],
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
+    // Esta linha sai da lista ao arquivar, levando junto o contexto do aviso.
+    final toast = AppToast.capture(context);
     await ref.read(exerciseRepositoryProvider).archive(exercise.id);
-    if (context.mounted) {
-      AppToast.show(context, '${exercise.name} arquivado.');
-    }
+    toast.show('${exercise.name} arquivado.');
   }
 }
 
