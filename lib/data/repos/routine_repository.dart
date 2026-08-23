@@ -237,6 +237,22 @@ class RoutineRepository {
     )..where((t) => t.id.equals(routineExerciseId))).go();
   }
 
+  /// Troca o exercício de um vínculo mantendo as séries planejadas.
+  ///
+  /// É uma coluna só porque as séries penduram no id do vínculo, não no
+  /// exercício — trocar aqui preserva tipo, alvo de repetições, segmentos e
+  /// posição de cada série, que é justamente a diferença entre "substituir" e
+  /// "excluir e adicionar de novo".
+  ///
+  /// O histórico não se mexe: a sessão copia o `exerciseId` para
+  /// `sessionExercises` quando começa, então o que já foi treinado continua
+  /// registrado no exercício antigo.
+  Future<void> replaceExercise(int routineExerciseId, int newExerciseId) {
+    return (_db.update(_db.routineExercises)
+          ..where((t) => t.id.equals(routineExerciseId)))
+        .write(RoutineExercisesCompanion(exerciseId: Value(newExerciseId)));
+  }
+
   /// Reordena os exercícios do treino conforme a ordem dos ids recebidos.
   Future<void> reorderExercises(List<int> routineExerciseIdsInOrder) {
     return _db.transaction(() async {
