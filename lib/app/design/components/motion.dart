@@ -81,23 +81,44 @@ class StaggeredEntry extends StatelessWidget {
 /// Transição de tela com mola: entra deslizando da direita com leve
 /// sobreposição, no lugar do corte padrão do Material no Android.
 class SpringPage<T> extends CustomTransitionPage<T> {
-  SpringPage({required super.child, super.key})
+  const SpringPage({required super.child, super.key})
     : super(
-        transitionDuration: const Duration(milliseconds: 340),
-        reverseTransitionDuration: const Duration(milliseconds: 260),
-        transitionsBuilder: (context, animation, secondary, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
-          return SlideTransition(
-            position: Tween(
-              begin: const Offset(0.06, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: FadeTransition(opacity: curved, child: child),
-          );
-        },
+        transitionDuration: _springIn,
+        reverseTransitionDuration: _springOut,
+        transitionsBuilder: springTransition,
       );
+}
+
+/// A mesma transição para quem empurra a tela pelo Navigator em vez do
+/// go_router — o caso das telas que devolvem valor, como o catálogo em modo de
+/// escolha. Sem isto, elas ficavam sendo a única transição de plataforma
+/// sobrando no app.
+Route<T> springRoute<T>(WidgetBuilder builder) => PageRouteBuilder<T>(
+  transitionDuration: _springIn,
+  reverseTransitionDuration: _springOut,
+  pageBuilder: (context, _, _) => builder(context),
+  transitionsBuilder: springTransition,
+);
+
+const _springIn = Duration(milliseconds: 340);
+const _springOut = Duration(milliseconds: 260);
+
+Widget springTransition(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondary,
+  Widget child,
+) {
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+  return SlideTransition(
+    position: Tween(
+      begin: const Offset(0.06, 0),
+      end: Offset.zero,
+    ).animate(curved),
+    child: FadeTransition(opacity: curved, child: child),
+  );
 }

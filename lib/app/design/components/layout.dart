@@ -325,6 +325,43 @@ class SectionLabel extends StatelessWidget {
   }
 }
 
+/// Cartão de bloco único: mesma superfície e mesmo hairline do [InsetGroup],
+/// sem as linhas divisórias.
+///
+/// Existe porque a decoração vinha sendo copiada em cada tela que precisava de
+/// um cartão que não fosse lista. Copiar seis linhas de `BoxDecoration` é como
+/// uma superfície começa a divergir do resto.
+class AppCard extends StatelessWidget {
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+    this.onTap,
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final content = Padding(padding: padding, child: child);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(Radii.lg),
+        border: Border.all(color: c.hairline, width: 0.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? content
+          : _Pressable(onTap: onTap!, child: content),
+    );
+  }
+}
+
 /// Agrupamento de lista: um cartão com hairlines entre as linhas. É a estrutura
 /// que dá o ar de app de sistema em vez de pilha de Cards do Material.
 class InsetGroup extends StatelessWidget {
@@ -364,7 +401,10 @@ class InsetGroup extends StatelessWidget {
         border: Border.all(color: c.hairline, width: 0.5),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(children: rows),
+      // mainAxisSize.min: dentro de uma lista a altura já é livre e isso não
+      // muda nada, mas dentro de uma folha — onde a altura é limitada — um
+      // Column padrão estica e a folha ocupa a tela inteira.
+      child: Column(mainAxisSize: MainAxisSize.min, children: rows),
     );
   }
 }

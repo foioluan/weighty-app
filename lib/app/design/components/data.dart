@@ -261,3 +261,101 @@ class ColumnHeader extends StatelessWidget {
     );
   }
 }
+
+/// A série planejada em forma de chip.
+///
+/// Substitui a linha inteira por série no editor: um exercício de 4×10 virava
+/// quatro linhas quase idênticas repetindo a palavra "Normal" — a maior massa
+/// visual da tela, e a de menor informação. Em chip, "4×10" se lê de relance.
+///
+/// A cor carrega o tipo, então o rótulo não precisa repetir "Normal" em todas:
+/// só os tipos que fogem do comum ganham letra e destaque.
+class SetChip extends StatelessWidget {
+  const SetChip({
+    super.key,
+    required this.type,
+    required this.targetReps,
+    required this.targetRepsMax,
+    this.segmentCount = 1,
+    this.onTap,
+  }) : _isAdd = false;
+
+  /// O chip de "adicionar série", no fim da fileira. Mesma altura dos outros
+  /// para a linha não ficar torta.
+  const SetChip.add({super.key, this.onTap})
+    : type = SetType.normal,
+      targetReps = null,
+      targetRepsMax = null,
+      segmentCount = 1,
+      _isAdd = true;
+
+  final SetType type;
+  final int? targetReps;
+  final int? targetRepsMax;
+  final int segmentCount;
+  final VoidCallback? onTap;
+  final bool _isAdd;
+
+  /// "10", "8-12" ou "—" quando não há alvo.
+  String get _reps => switch ((targetReps, targetRepsMax)) {
+    (null, _) => '—',
+    (final a?, null) => '$a',
+    (final a?, final b?) => '$a-$b',
+  };
+
+  String get _label => switch (type) {
+    SetType.aquecimento => 'aq',
+    SetType.drop => _multiLabel('D'),
+    SetType.cluster => _multiLabel('C'),
+    SetType.normal => _reps,
+  };
+
+  /// "D 3×8" quando há alvo; só "D 3" quando não há — o "×" pedindo um número
+  /// que não existe ficava "D 3×—", que não quer dizer nada.
+  String _multiLabel(String letter) => targetReps == null
+      ? '$letter $segmentCount'
+      : '$letter $segmentCount×$_reps';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
+    final (background, foreground, border) = switch (type) {
+      // O aquecimento não conta para nenhum indicador, então também não pesa
+      // na fileira: só o contorno.
+      SetType.aquecimento => (Colors.transparent, c.textTertiary, c.hairline),
+      SetType.drop || SetType.cluster => (c.accentSubtle, c.accent, null),
+      SetType.normal => (c.surfaceInput, c.textPrimary, null),
+    };
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: Heights.controlCompact,
+        constraints: const BoxConstraints(minWidth: Heights.controlCompact),
+        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+        decoration: BoxDecoration(
+          color: _isAdd ? Colors.transparent : background,
+          borderRadius: BorderRadius.circular(Radii.sm),
+          border: _isAdd
+              ? Border.all(color: c.hairlineStrong, width: 0.5)
+              : border == null
+              ? null
+              : Border.all(color: border, width: 0.5),
+        ),
+        // widthFactor: um Center sem ele cresce até a largura máxima permitida,
+        // e dentro de um Wrap isso faz cada chip ocupar a linha inteira.
+        child: Center(
+          widthFactor: 1,
+          child: _isAdd
+              ? Icon(LucideIcons.plus, size: 15, color: c.accent)
+              : Text(
+                  _label,
+                  style: AppText.numberSmall.copyWith(color: foreground),
+                ),
+        ),
+      ),
+    );
+  }
+}
