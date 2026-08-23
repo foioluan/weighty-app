@@ -23,7 +23,6 @@ class RoutineEditorPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final c = context.colors;
     final detail = ref.watch(routineDetailProvider(routineId));
     final data = detail.valueOrNull;
 
@@ -53,54 +52,83 @@ class RoutineEditorPage extends ConsumerWidget {
             );
           }
 
-          return ReorderableListView(
-            padding: const EdgeInsets.fromLTRB(
-              Space.xl,
-              Space.lg,
-              Space.xl,
-              Space.xxxl,
-            ),
-            footer: Padding(
-              padding: const EdgeInsets.only(top: Space.xl),
-              child: InsetGroup(
-                children: [
-                  AppRow(
-                    title: 'Adicionar exercício',
-                    titleColor: c.accent,
-                    leading: Icon(LucideIcons.plus, size: 19, color: c.accent),
-                    onTap: () => _addExercise(context, ref),
-                  ),
-                ],
-              ),
-            ),
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorder(ref, data, oldIndex, newIndex),
-            children: [
-              if (data.exercises.isEmpty)
+          // O estado vazio fica fora da lista reordenável: dentro dela ele era
+          // um item arrastável, o que não faz sentido nenhum.
+          if (data.exercises.isEmpty) {
+            return ListView(
+              padding: _listPadding,
+              children: [
                 const Padding(
-                  key: ValueKey('empty'),
-                  padding: EdgeInsets.only(top: Space.xxxl),
+                  padding: EdgeInsets.only(top: Space.xxl, bottom: Space.xxl),
                   child: EmptyState(
                     title: 'Nenhum exercício',
                     message:
                         'Adicione exercícios abaixo para montar este treino.',
                   ),
-                )
-              else
-                for (var i = 0; i < data.exercises.length; i++)
-                  Padding(
-                    key: ValueKey(data.exercises[i].link.id),
-                    padding: const EdgeInsets.only(bottom: Space.lg),
+                ),
+                _AddExerciseRow(routineId: routineId),
+              ],
+            );
+          }
+
+          return ReorderableListView(
+            padding: _listPadding,
+            footer: Padding(
+              padding: const EdgeInsets.only(top: Space.md),
+              child: _AddExerciseRow(routineId: routineId),
+            ),
+            onReorderStart: (_) => Haptics.tick(),
+            onReorderItem: (oldIndex, newIndex) =>
+                _reorder(ref, data, oldIndex, newIndex),
+            proxyDecorator: _liftCard,
+            children: [
+              for (var i = 0; i < data.exercises.length; i++)
+                Padding(
+                  key: ValueKey(data.exercises[i].link.id),
+                  padding: const EdgeInsets.only(bottom: Space.lg),
+                  child: StaggeredEntry(
+                    index: i,
                     child: _ExerciseCard(
                       routineId: routineId,
                       detail: data.exercises[i],
                       index: i,
                     ),
                   ),
+                ),
             ],
           );
         },
       ),
+    );
+  }
+
+  static const _listPadding = EdgeInsets.fromLTRB(
+    Space.xl,
+    Space.lg,
+    Space.xl,
+    Space.xxxl,
+  );
+
+  /// Realce do card arrastado. O padrão do `ReorderableListView` embrulha o
+  /// item num Material com elevação — a sombra que mais entrega "Android
+  /// padrão". Aqui o item só cresce um tico.
+  static Widget _liftCard(
+    Widget child,
+    int index,
+    Animation<double> animation,
+  ) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final t = Curves.easeOut.transform(animation.value);
+        return Material(
+          // O proxy vai para um Overlay: sem Material aqui, o texto do card
+          // arrastado ganharia o sublinhado amarelo de "faltou Material".
+          color: Colors.transparent,
+          child: Transform.scale(scale: 1 + 0.03 * t, child: child),
+        );
+      },
+      child: child,
     );
   }
 
@@ -174,13 +202,49 @@ class RoutineEditorPage extends ConsumerWidget {
     await ref.read(routineRepositoryProvider).reorderExercises(ids);
     ref.invalidate(routineDetailProvider(routineId));
   }
+}
 
-  Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
-    final exercise = await Navigator.push<Exercise>(
+/// Abre o catálogo em modo de escolha e devolve o exercício escolhido.
+Future<Exercise?> pickExercise(
+  BuildContext context, {
+  required String title,
+  required IconData icon,
+}) {
+  return Navigator.push<Exercise>(
+    context,
+    springRoute(
+      (_) =>
+          ExerciseCatalogPage(selecting: true, title: title, selectIcon: icon),
+    ),
+  );
+}
+
+class _AddExerciseRow extends ConsumerWidget {
+  const _AddExerciseRow({required this.routineId});
+
+  final int routineId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+
+    return InsetGroup(
+      children: [
+        AppRow(
+          title: 'Adicionar exercício',
+          titleColor: c.accent,
+          leading: Icon(LucideIcons.plus, size: 19, color: c.accent),
+          onTap: () => _add(context, ref),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _add(BuildContext context, WidgetRef ref) async {
+    final exercise = await pickExercise(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ExerciseCatalogPage(selecting: true),
-      ),
+      title: 'Escolher exercício',
+      icon: LucideIcons.plus,
     );
     if (exercise == null) return;
 
@@ -191,6 +255,9 @@ class RoutineEditorPage extends ConsumerWidget {
     ref.invalidate(routineSummariesProvider);
   }
 }
+
+/// O que o menu de três pontos pode devolver.
+enum _ExerciseAction { replace, duplicateLast, remove }
 
 class _ExerciseCard extends ConsumerWidget {
   const _ExerciseCard({
@@ -207,44 +274,35 @@ class _ExerciseCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: c.hairline, width: 0.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // Barra da cor do grupo muscular na borda superior: identifica o
-          // exercício de relance sem ocupar espaço de texto.
-          Container(
-            height: 2,
-            color: c.forMuscleGroup(detail.exercise.muscleGroup),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.sm, 0),
-            child: Row(
+    // Arrastar por toque longo no card inteiro, em vez de por um pegador
+    // visível: o pegador ocupava a mesma linha do nome e do X e deixava o
+    // cabeçalho com três coisas competindo.
+    return ReorderableDelayedDragStartListener(
+      index: index,
+      child: AppCard(
+        padding: const EdgeInsets.fromLTRB(
+          Space.lg,
+          Space.lg,
+          Space.md,
+          Space.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: Space.md),
-                    child: Icon(
-                      LucideIcons.gripVertical,
-                      size: 17,
-                      color: c.textGhost,
-                    ),
-                  ),
+                ExerciseAvatar(
+                  name: detail.exercise.name,
+                  group: detail.exercise.muscleGroup,
                 ),
-                const SizedBox(width: Space.md),
+                const SizedBox(width: Space.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         detail.exercise.name,
-                        style: AppText.title2.copyWith(color: c.textPrimary),
+                        style: AppText.title3.copyWith(color: c.textPrimary),
                       ),
                       Text(
                         detail.exercise.muscleGroup.label,
@@ -254,66 +312,170 @@ class _ExerciseCard extends ConsumerWidget {
                   ),
                 ),
                 AppIconButton(
-                  icon: LucideIcons.x,
-                  size: 17,
+                  icon: LucideIcons.ellipsis,
+                  size: 18,
                   tapSize: 38,
-                  label: 'Remover ${detail.exercise.name} do treino',
-                  onPressed: () => _removeExercise(context, ref),
+                  label: 'Opções de ${detail.exercise.name}',
+                  onPressed: () => _openMenu(context, ref),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: Space.sm),
-          for (var i = 0; i < detail.sets.length; i++)
-            _SetRow(routineId: routineId, set: detail.sets[i], number: i + 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Space.md,
-              Space.xs,
-              Space.md,
-              Space.md,
+            const SizedBox(height: Space.lg),
+            Padding(
+              padding: const EdgeInsets.only(right: Space.sm),
+              child: Wrap(
+                spacing: Space.sm,
+                runSpacing: Space.sm,
+                children: [
+                  for (var i = 0; i < detail.sets.length; i++)
+                    SetChip(
+                      type: detail.sets[i].setType,
+                      targetReps: detail.sets[i].targetReps,
+                      targetRepsMax: detail.sets[i].targetRepsMax,
+                      segmentCount: detail.sets[i].segmentCount,
+                      onTap: () =>
+                          _editSet(context, ref, detail.sets[i], i + 1),
+                    ),
+                  SetChip.add(onTap: () => _addSet(ref)),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                AppButton(
-                  label: 'Série',
-                  icon: LucideIcons.plus,
-                  style: AppButtonStyle.plain,
-                  compact: true,
-                  onPressed: () => _addSet(ref),
-                ),
-                if (detail.sets.isNotEmpty)
-                  AppButton(
-                    label: 'Duplicar última',
-                    style: AppButtonStyle.plain,
-                    compact: true,
-                    onPressed: () => _duplicateLast(ref),
-                  ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _removeExercise(BuildContext context, WidgetRef ref) async {
-    await ref.read(routineRepositoryProvider).removeExercise(detail.link.id);
+  void _invalidate(WidgetRef ref) {
     ref.invalidate(routineDetailProvider(routineId));
     ref.invalidate(routineSummariesProvider);
   }
 
+  Future<void> _openMenu(BuildContext context, WidgetRef ref) async {
+    final c = context.colors;
+    final hasSets = detail.sets.isNotEmpty;
+
+    final action = await showAppSheet<_ExerciseAction>(
+      context,
+      title: detail.exercise.name,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          Space.xxl,
+          Space.lg,
+          Space.xxl,
+          Space.xxl + MediaQuery.paddingOf(sheetContext).bottom,
+        ),
+        child: InsetGroup(
+          children: [
+            AppRow(
+              title: 'Substituir exercício',
+              subtitle: 'Mantém as séries já configuradas',
+              leading: Icon(
+                LucideIcons.repeat,
+                size: 19,
+                color: c.textSecondary,
+              ),
+              onTap: () => Navigator.pop(sheetContext, _ExerciseAction.replace),
+            ),
+            if (hasSets)
+              AppRow(
+                title: 'Duplicar última série',
+                leading: Icon(
+                  LucideIcons.copyPlus,
+                  size: 19,
+                  color: c.textSecondary,
+                ),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _ExerciseAction.duplicateLast),
+              ),
+            AppRow(
+              title: 'Remover do treino',
+              titleColor: c.down,
+              leading: Icon(LucideIcons.trash2, size: 19, color: c.down),
+              onTap: () => Navigator.pop(sheetContext, _ExerciseAction.remove),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == null || !context.mounted) return;
+
+    switch (action) {
+      case _ExerciseAction.replace:
+        await _replace(context, ref);
+      case _ExerciseAction.duplicateLast:
+        await _duplicateLast(ref);
+      case _ExerciseAction.remove:
+        await _remove(context, ref);
+    }
+  }
+
+  Future<void> _replace(BuildContext context, WidgetRef ref) async {
+    final chosen = await pickExercise(
+      context,
+      title: 'Substituir exercício',
+      icon: LucideIcons.repeat,
+    );
+    if (chosen == null || chosen.id == detail.exercise.id) return;
+
+    final previous = detail.exercise.name;
+    await ref
+        .read(routineRepositoryProvider)
+        .replaceExercise(detail.link.id, chosen.id);
+    _invalidate(ref);
+
+    if (context.mounted) {
+      Haptics.confirm();
+      AppToast.show(context, '$previous → ${chosen.name}');
+    }
+  }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    // Remover joga fora as séries planejadas junto, então confirma — era a
+    // única ação destrutiva do app que acontecia calada.
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: 'Remover "${detail.exercise.name}"?',
+      message:
+          'As séries planejadas dele neste treino serão apagadas. '
+          'O histórico já registrado não muda.',
+      actions: const [
+        AppDialogAction(label: 'Cancelar', value: false),
+        AppDialogAction(
+          label: 'Remover',
+          value: true,
+          isDestructive: true,
+          isPreferred: true,
+        ),
+      ],
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    Haptics.warn();
+    final name = detail.exercise.name;
+    // Capturado antes: este card sai da lista na hora, e com ele o contexto
+    // que mostraria o aviso.
+    final toast = AppToast.capture(context);
+
+    await ref.read(routineRepositoryProvider).removeExercise(detail.link.id);
+    _invalidate(ref);
+
+    toast.show('$name removido do treino.');
+  }
+
   Future<void> _addSet(WidgetRef ref) async {
+    Haptics.tick();
     await ref
         .read(routineRepositoryProvider)
         .addSet(detail.link.id, targetReps: 10);
-    ref.invalidate(routineDetailProvider(routineId));
-    ref.invalidate(routineSummariesProvider);
+    _invalidate(ref);
   }
 
   /// Montar "4 x 10" fica em dois toques em vez de quatro.
   Future<void> _duplicateLast(WidgetRef ref) async {
     final last = detail.sets.last;
+    Haptics.tick();
     await ref
         .read(routineRepositoryProvider)
         .addSet(
@@ -323,112 +485,55 @@ class _ExerciseCard extends ConsumerWidget {
           targetRepsMax: last.targetRepsMax,
           segmentCount: last.segmentCount,
         );
-    ref.invalidate(routineDetailProvider(routineId));
-    ref.invalidate(routineSummariesProvider);
-  }
-}
-
-class _SetRow extends ConsumerWidget {
-  const _SetRow({
-    required this.routineId,
-    required this.set,
-    required this.number,
-  });
-
-  final int routineId;
-  final PlannedSet set;
-  final int number;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = context.colors;
-    final isWarmup = set.setType == SetType.aquecimento;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _editSet(context, ref),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          Space.lg,
-          Space.xs,
-          Space.sm,
-          Space.xs,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              child: Text(
-                isWarmup ? 'aq' : '$number',
-                style: AppText.numberSmall.copyWith(color: c.textTertiary),
-              ),
-            ),
-            const SizedBox(width: Space.md),
-            Expanded(
-              child: Text(
-                set.setType.label,
-                style: AppText.callout.copyWith(
-                  color: isWarmup ? c.textTertiary : c.textPrimary,
-                ),
-              ),
-            ),
-            Text(
-              _repsLabel(set),
-              style: AppText.footnote.copyWith(color: c.textTertiary),
-            ),
-            const SizedBox(width: Space.md),
-            AppIconButton(
-              icon: LucideIcons.circleMinus,
-              size: 16,
-              tapSize: 34,
-              label: 'Remover série $number',
-              onPressed: () async {
-                await ref.read(routineRepositoryProvider).removeSet(set.id);
-                ref.invalidate(routineDetailProvider(routineId));
-                ref.invalidate(routineSummariesProvider);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    _invalidate(ref);
   }
 
-  Future<void> _editSet(BuildContext context, WidgetRef ref) async {
-    final result = await showAppSheet<_SetConfig>(
+  Future<void> _editSet(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedSet set,
+    int number,
+  ) async {
+    Haptics.tick();
+    final result = await showAppSheet<_SetResult>(
       context,
       title: 'Série $number',
       builder: (context) => _SetConfigSheet(set: set),
     );
     if (result == null) return;
 
-    await ref
-        .read(routineRepositoryProvider)
-        .updateSet(
+    final repo = ref.read(routineRepositoryProvider);
+    switch (result) {
+      case _SetSaved(:final config):
+        await repo.updateSet(
           set.id,
-          type: result.type,
-          targetReps: result.targetReps,
-          targetRepsMax: result.targetRepsMax,
-          segmentCount: result.segmentCount,
+          type: config.type,
+          targetReps: config.targetReps,
+          targetRepsMax: config.targetRepsMax,
+          segmentCount: config.segmentCount,
         );
-    ref.invalidate(routineDetailProvider(routineId));
+        // A contagem de séries não mudou, então o resumo da home não precisa
+        // ser refeito.
+        ref.invalidate(routineDetailProvider(routineId));
+      case _SetDeleted():
+        Haptics.warn();
+        await repo.removeSet(set.id);
+        _invalidate(ref);
+    }
   }
 }
 
-String _repsLabel(PlannedSet set) {
-  final min = set.targetReps;
-  final max = set.targetRepsMax;
-  final reps = switch ((min, max)) {
-    (null, _) => 'sem alvo',
-    (final a?, null) => '$a reps',
-    (final a?, final b?) => '$a-$b reps',
-  };
+sealed class _SetResult {
+  const _SetResult();
+}
 
-  if (set.setType.isMultiSegment) {
-    final unit = set.setType == SetType.drop ? 'quedas' : 'blocos';
-    return '${set.segmentCount} $unit · $reps';
-  }
-  return reps;
+class _SetSaved extends _SetResult {
+  const _SetSaved(this.config);
+  final _SetConfig config;
+}
+
+class _SetDeleted extends _SetResult {
+  const _SetDeleted();
 }
 
 class _SetConfig {
@@ -491,10 +596,7 @@ class _SetConfigSheetState extends State<_SetConfigSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'TIPO',
-              style: AppText.overline.copyWith(color: c.textTertiary),
-            ),
+            const SectionLabel('Tipo'),
             const SizedBox(height: Space.md),
             InsetGroup(
               children: [
@@ -510,9 +612,8 @@ class _SetConfigSheetState extends State<_SetConfigSheet> {
             ),
             if (_type.isMultiSegment) ...[
               const SizedBox(height: Space.xxl),
-              Text(
-                _type == SetType.drop ? 'QUEDAS DE CARGA' : 'BLOCOS',
-                style: AppText.overline.copyWith(color: c.textTertiary),
+              SectionLabel(
+                _type == SetType.drop ? 'Quedas de carga' : 'Blocos',
               ),
               const SizedBox(height: Space.md),
               Row(
@@ -535,10 +636,7 @@ class _SetConfigSheetState extends State<_SetConfigSheet> {
               ),
             ],
             const SizedBox(height: Space.xxl),
-            Text(
-              'ALVO DE REPETIÇÕES',
-              style: AppText.overline.copyWith(color: c.textTertiary),
-            ),
+            const SectionLabel('Alvo de repetições'),
             const SizedBox(height: Space.md),
             Row(
               children: [
@@ -563,20 +661,32 @@ class _SetConfigSheetState extends State<_SetConfigSheet> {
               ],
             ),
             const SizedBox(height: Space.xxl),
-            Align(
-              alignment: Alignment.centerRight,
-              child: AppButton(
-                label: 'Salvar série',
-                onPressed: () => Navigator.pop(
-                  context,
-                  _SetConfig(
-                    type: _type,
-                    targetReps: _targetReps,
-                    targetRepsMax: _targetRepsMax,
-                    segmentCount: _segmentCount,
+            Row(
+              children: [
+                // Excluir mora aqui porque o chip não tem espaço para um ⊖ sem
+                // virar alvo de toque duvidoso — e porque abrir a série antes
+                // de apagá-la já mostra o que se está apagando.
+                AppButton(
+                  label: 'Excluir série',
+                  style: AppButtonStyle.danger,
+                  onPressed: () => Navigator.pop(context, const _SetDeleted()),
+                ),
+                const Spacer(),
+                AppButton(
+                  label: 'Salvar série',
+                  onPressed: () => Navigator.pop(
+                    context,
+                    _SetSaved(
+                      _SetConfig(
+                        type: _type,
+                        targetReps: _targetReps,
+                        targetRepsMax: _targetRepsMax,
+                        segmentCount: _segmentCount,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),

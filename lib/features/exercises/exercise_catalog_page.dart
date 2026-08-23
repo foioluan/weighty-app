@@ -11,9 +11,22 @@ import '../../domain/models/enums.dart';
 /// Catálogo de exercícios. Como aba, mostra título grande; como seletor (aberto
 /// pelo editor de treino), vira uma tela empilhada com barra e botão de voltar.
 class ExerciseCatalogPage extends ConsumerStatefulWidget {
-  const ExerciseCatalogPage({super.key, this.selecting = false});
+  const ExerciseCatalogPage({
+    super.key,
+    this.selecting = false,
+    this.title = 'Escolher exercício',
+    this.selectIcon = LucideIcons.plus,
+  });
 
   final bool selecting;
+
+  /// Título da barra em modo de escolha — muda conforme o motivo da escolha
+  /// (adicionar um exercício ao treino, ou substituir um que já está lá).
+  final String title;
+
+  /// Ícone no fim de cada linha em modo de escolha. Um "+" só faz sentido
+  /// quando a escolha adiciona; substituindo, ele contradiz o título.
+  final IconData selectIcon;
 
   @override
   ConsumerState<ExerciseCatalogPage> createState() =>
@@ -55,7 +68,7 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
 
     return AppScaffold(
       largeTitle: widget.selecting ? null : 'Exercícios',
-      title: widget.selecting ? 'Escolher exercício' : null,
+      title: widget.selecting ? widget.title : null,
       showBack: widget.selecting,
       body: Column(
         children: [
@@ -136,7 +149,11 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
                       separatorIndent: 0,
                       children: [
                         for (final exercise in items)
-                          _ExerciseRow(exercise, selecting: widget.selecting),
+                          _ExerciseRow(
+                            exercise,
+                            selecting: widget.selecting,
+                            selectIcon: widget.selectIcon,
+                          ),
                       ],
                     ),
                   const SizedBox(height: Space.xl),
@@ -165,10 +182,15 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
 }
 
 class _ExerciseRow extends ConsumerWidget {
-  const _ExerciseRow(this.exercise, {required this.selecting});
+  const _ExerciseRow(
+    this.exercise, {
+    required this.selecting,
+    required this.selectIcon,
+  });
 
   final Exercise exercise;
   final bool selecting;
+  final IconData selectIcon;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -181,7 +203,7 @@ class _ExerciseRow extends ConsumerWidget {
       leading: ExerciseAvatar(name: exercise.name, group: exercise.muscleGroup),
       showChevron: !selecting,
       trailing: selecting
-          ? Icon(LucideIcons.plus, size: 19, color: c.accent)
+          ? Icon(selectIcon, size: 19, color: c.accent)
           : (exercise.isCustom
                 ? AppIconButton(
                     icon: LucideIcons.circleMinus,
