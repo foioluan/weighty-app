@@ -9,7 +9,13 @@ const appName = 'Weighty';
 
 /// Versão mostrada nos Ajustes. Um teste garante que ela não se descole do
 /// `version:` do pubspec — duas fontes de verdade sem trava sempre divergem.
-const appVersion = '1.2.0';
+const appVersion = '2.0.0';
+
+/// A versão como aparece para quem usa: "2.0" em vez de "2.0.0". O patch zero
+/// é ruído na tela; um patch de verdade ("2.0.1") continua aparecendo.
+String get appVersionLabel => appVersion.endsWith('.0')
+    ? appVersion.substring(0, appVersion.length - 2)
+    : appVersion;
 
 const appAuthor = 'Luan Veríssimo';
 

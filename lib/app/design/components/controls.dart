@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme.dart';
+import 'glass.dart';
 
 enum AppButtonStyle {
   /// Ação principal: bronze cheio.
@@ -66,24 +67,23 @@ class _AppButtonState extends State<AppButton> {
       AppButtonStyle.plain => (Colors.transparent, c.accent),
       AppButtonStyle.danger => (c.downSubtle, c.down),
     };
+    final tone = disabled ? c.textTertiary : fg;
 
     final height = widget.compact ? Heights.controlCompact : Heights.control;
+    final filled = widget.style == AppButtonStyle.filled && !disabled;
 
     final child = Row(
       mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (widget.icon != null) ...[
-          Icon(widget.icon, size: 17, color: disabled ? c.textGhost : fg),
+          Icon(widget.icon, size: widget.compact ? 16 : 19, color: tone),
           const SizedBox(width: Space.sm),
         ],
         Text(
           widget.label,
-          style: (widget.compact ? AppText.callout : AppText.bodyStrong)
-              .copyWith(
-                color: disabled ? c.textGhost : fg,
-                fontWeight: FontWeight.w500,
-              ),
+          style: (widget.compact ? AppText.subheadline : AppText.headline)
+              .copyWith(color: tone, fontWeight: FontWeight.w600),
         ),
       ],
     );
@@ -92,28 +92,43 @@ class _AppButtonState extends State<AppButton> {
       button: true,
       enabled: !disabled,
       label: widget.label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      excludeSemantics: true,
+      child: PressScale(
         onTap: widget.onPressed,
-        onTapDown: disabled ? null : (_) => setState(() => _down = true),
-        onTapUp: disabled ? null : (_) => setState(() => _down = false),
-        onTapCancel: disabled ? null : () => setState(() => _down = false),
+        scale: widget.expand ? 0.98 : 0.95,
+        onPressedChanged: (v) => setState(() => _down = v),
         child: AnimatedOpacity(
           duration: AppDurations.fast,
-          opacity: _down && widget.style != AppButtonStyle.filled ? 0.6 : 1,
+          opacity: _down && !filled ? 0.6 : 1,
           child: Container(
             height: height,
             // O padding lateral acompanha a altura: numa pílula, folga fixa
             // faz o rótulo encostar na curva quando o botão é baixo.
-            padding: EdgeInsets.symmetric(horizontal: height * 0.42),
-            decoration: BoxDecoration(
-              color: disabled ? c.surfaceInput : bg,
-              borderRadius: BorderRadius.circular(height / 2),
-              border: widget.style == AppButtonStyle.tinted && !disabled
-                  ? Border.all(
-                      color: c.accent.withValues(alpha: 0.35),
-                      width: 0.5,
+            padding: EdgeInsets.symmetric(horizontal: height * 0.44),
+            decoration: ShapeDecoration(
+              shape: const StadiumBorder(),
+              color: filled ? null : (disabled ? c.fill : bg),
+              // A ação cheia tem volume: um degradê leve de cima para baixo e
+              // uma sombra na própria cor, como os botões do iOS 26. Chapada,
+              // ela lia como um adesivo colado na tela.
+              gradient: filled
+                  ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color.lerp(bg, Colors.white, 0.14)!, bg],
                     )
+                  : null,
+              shadows: filled
+                  ? [
+                      BoxShadow(
+                        color: c.accent.withValues(
+                          alpha: c.isDark ? 0.32 : 0.28,
+                        ),
+                        blurRadius: 18,
+                        spreadRadius: -6,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
                   : null,
             ),
             // Sem Center aqui: um Align sem widthFactor cresce até a largura
@@ -191,9 +206,9 @@ class AppStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: c.surfaceInput,
-        borderRadius: BorderRadius.circular(Radii.sm),
+        shape: AppShapes.superellipse(Radii.md),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -248,6 +263,9 @@ class _StepperHalf extends StatelessWidget {
 /// Seletor segmentado. O `SegmentedButton` do Material tem 40 px de altura,
 /// bordas grossas e ícone de "selecionado" — pesado demais para trocar métrica
 /// num gráfico.
+///
+/// O polegar desliza de um segmento para o outro com mola, como o
+/// `UISegmentedControl`, em vez de o realce trocar de lugar num corte.
 class AppSegmented<T> extends StatelessWidget {
   const AppSegmented({
     super.key,
@@ -263,55 +281,75 @@ class AppSegmented<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final keys = segments.keys.toList();
+    final n = keys.length;
+    final index = keys.indexOf(selected);
+
     return Container(
-      height: 32,
+      height: 36,
       padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: c.surfaceInput,
-        borderRadius: BorderRadius.circular(Radii.sm),
+      decoration: ShapeDecoration(
+        color: c.fill,
+        shape: AppShapes.superellipse(Radii.sm),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          for (final entry in segments.entries)
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onChanged(entry.key),
-                child: AnimatedContainer(
-                  duration: AppDurations.fast,
-                  decoration: BoxDecoration(
-                    color: entry.key == selected
-                        ? c.surface
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(Radii.sm - 2),
-                    border: entry.key == selected
-                        ? Border.all(color: c.hairline, width: 0.5)
-                        : null,
-                  ),
-                  child: Center(
-                    child: Text(
-                      entry.value,
-                      style: AppText.footnote.copyWith(
-                        color: entry.key == selected
-                            ? c.textPrimary
-                            : c.textTertiary,
-                        fontWeight: entry.key == selected
-                            ? FontWeight.w500
-                            : FontWeight.w400,
+          if (index >= 0)
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 320),
+              curve: const Cubic(0.3, 1.25, 0.45, 1),
+              alignment: Alignment(n == 1 ? 0 : -1 + 2 * index / (n - 1), 0),
+              child: FractionallySizedBox(
+                widthFactor: 1 / n,
+                heightFactor: 1,
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    color: c.isDark ? c.surfaceInput : c.surface,
+                    shape: AppShapes.superellipse(Radii.sm - 2),
+                    shadows: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: c.isDark ? 0.3 : 0.12,
+                        ),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
+          Row(
+            children: [
+              for (final entry in segments.entries)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onChanged(entry.key),
+                    child: Center(
+                      child: AnimatedDefaultTextStyle(
+                        duration: AppDurations.fast,
+                        style: AppText.footnote.copyWith(
+                          color: c.textPrimary,
+                          fontWeight: entry.key == selected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                        child: Text(entry.value),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Chip de filtro. Sem borda quando inativo — a paleta de grupos musculares já
-/// carrega cor suficiente.
+/// Chip de filtro, em cápsula sem borda: inativo sobre a superfície do
+/// cartão, ativo tingido na cor do grupo muscular.
 class AppChip extends StatelessWidget {
   const AppChip({
     super.key,
@@ -333,27 +371,26 @@ class AppChip extends StatelessWidget {
     final c = context.colors;
     final tone = accent ?? c.accent;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return PressScale(
       onTap: onTap,
+      scale: 0.94,
       child: AnimatedContainer(
         duration: AppDurations.fast,
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-        decoration: BoxDecoration(
-          color: selected ? tone.withValues(alpha: 0.16) : c.surface,
-          borderRadius: BorderRadius.circular(Radii.pill),
-          border: Border.all(
-            color: selected ? tone.withValues(alpha: 0.5) : c.hairline,
-            width: 0.5,
-          ),
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: Space.lg + 2),
+        decoration: ShapeDecoration(
+          color: selected
+              ? tone.withValues(alpha: c.isDark ? 0.24 : 0.16)
+              : c.surface,
+          shape: const StadiumBorder(),
         ),
         child: Center(
+          widthFactor: 1,
           child: Text(
             label,
-            style: AppText.footnote.copyWith(
-              color: selected ? tone : c.textSecondary,
-              fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            style: AppText.subheadline.copyWith(
+              color: selected ? tone : c.textPrimary,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ),
@@ -410,7 +447,9 @@ class AppChoiceRow<T> extends StatelessWidget {
                       const SizedBox(height: 1),
                       Text(
                         subtitle!,
-                        style: AppText.footnote.copyWith(color: c.textTertiary),
+                        style: AppText.subheadline.copyWith(
+                          color: c.textSecondary,
+                        ),
                       ),
                     ],
                   ],

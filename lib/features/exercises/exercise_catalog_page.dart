@@ -16,9 +16,14 @@ class ExerciseCatalogPage extends ConsumerStatefulWidget {
     this.selecting = false,
     this.title = 'Escolher exercício',
     this.selectIcon = LucideIcons.plus,
+    this.scrollController,
   });
 
   final bool selecting;
+
+  /// Vem da folha de escolha: liga a rolagem da lista ao arrasto que fecha a
+  /// folha.
+  final ScrollController? scrollController;
 
   /// Título da barra em modo de escolha — muda conforme o motivo da escolha
   /// (adicionar um exercício ao treino, ou substituir um que já está lá).
@@ -69,14 +74,25 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
     return AppScaffold(
       largeTitle: widget.selecting ? null : 'Exercícios',
       title: widget.selecting ? widget.title : null,
-      showBack: widget.selecting,
-      body: Column(
-        children: [
-          Padding(
+      // Em modo de escolha a tela é uma folha: sai pelo X ou arrastando para
+      // baixo, não por um voltar.
+      showBack: false,
+      actions: [
+        if (widget.selecting)
+          AppNavIcon(
+            icon: LucideIcons.x,
+            label: 'Fechar',
+            onTap: () => Navigator.maybePop(context),
+          ),
+      ],
+      scrollController: widget.scrollController,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(
-              Space.xl,
+              Space.page,
               Space.xs,
-              Space.xl,
+              Space.page,
               Space.md,
             ),
             child: AppTextField(
@@ -94,11 +110,13 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
                     },
             ),
           ),
-          SizedBox(
-            height: 38,
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 40,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+              padding: const EdgeInsets.symmetric(horizontal: Space.page),
               children: [
                 AppChip(
                   label: 'Todos',
@@ -121,62 +139,58 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
               ],
             ),
           ),
-          Expanded(
-            child: catalog.when(
-              loading: () => const SizedBox.shrink(),
-              error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
-              data: (items) => ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  Space.xl,
-                  Space.lg,
-                  Space.xl,
-                  Space.xxxl,
+        ),
+        catalog.when(
+          loading: () => const SliverToBoxAdapter(),
+          error: (e, _) => AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+          data: (items) => AppSliverList(
+            padding: const EdgeInsets.fromLTRB(
+              Space.page,
+              Space.lg,
+              Space.page,
+              0,
+            ),
+            children: [
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.xxl),
+                  child: EmptyState(
+                    title: 'Nada encontrado',
+                    message: filtering
+                        ? 'Nenhum exercício com esse filtro. Limpe a busca '
+                              'ou crie um novo abaixo.'
+                        : 'Crie um exercício novo abaixo.',
+                  ),
+                )
+              else
+                InsetGroup(
+                  separatorIndent: AppRow.textInset(),
+                  children: [
+                    for (final exercise in items)
+                      _ExerciseRow(
+                        exercise,
+                        selecting: widget.selecting,
+                        selectIcon: widget.selectIcon,
+                      ),
+                  ],
                 ),
+              const SizedBox(height: Space.xl),
+              InsetGroup(
                 children: [
-                  if (items.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: Space.xxl),
-                      child: EmptyState(
-                        title: 'Nada encontrado',
-                        message: filtering
-                            ? 'Nenhum exercício com esse filtro. Limpe a busca '
-                                  'ou crie um novo abaixo.'
-                            : 'Crie um exercício novo abaixo.',
-                      ),
-                    )
-                  else
-                    InsetGroup(
-                      separatorIndent: 0,
-                      children: [
-                        for (final exercise in items)
-                          _ExerciseRow(
-                            exercise,
-                            selecting: widget.selecting,
-                            selectIcon: widget.selectIcon,
-                          ),
-                      ],
-                    ),
-                  const SizedBox(height: Space.xl),
-                  InsetGroup(
-                    children: [
-                      AppRow(
-                        title: 'Novo exercício',
-                        titleColor: c.accent,
-                        leading: Icon(
-                          LucideIcons.plus,
-                          size: 19,
-                          color: c.accent,
-                        ),
-                        onTap: () => _createExercise(context, ref),
-                      ),
-                    ],
+                  AppRow(
+                    title: 'Novo exercício',
+                    titleColor: c.accent,
+                    leading: Icon(LucideIcons.plus, size: 20, color: c.accent),
+                    onTap: () => _createExercise(context, ref),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

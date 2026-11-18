@@ -18,18 +18,26 @@ class HistoryPage extends ConsumerWidget {
 
     return AppScaffold(
       largeTitle: 'Histórico',
-      body: sessions.when(
-        loading: () => const SizedBox.shrink(),
-        error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
+      slivers: sessions.when(
+        loading: () => const [],
+        error: (e, _) => [
+          AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+        ],
         data: (list) {
           if (list.isEmpty) {
-            return const EmptyState(
-              title: 'Nenhum treino finalizado',
-              message:
-                  'Depois da primeira sessão, o histórico e os gráficos de '
-                  'evolução aparecem aqui.',
-              icon: LucideIcons.history,
-            );
+            return const [
+              AppSliverFill(
+                child: EmptyState(
+                  title: 'Nenhum treino finalizado',
+                  message:
+                      'Depois da primeira sessão, o histórico e os gráficos de '
+                      'evolução aparecem aqui.',
+                  icon: LucideIcons.history,
+                ),
+              ),
+            ];
           }
 
           // Agrupa por mês: rolar uma lista longa de datas soltas não dá noção
@@ -43,42 +51,38 @@ class HistoryPage extends ConsumerWidget {
             byMonth.putIfAbsent(key, () => []).add(session);
           }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              Space.xl,
-              0,
-              Space.xl,
-              Space.xxxl,
-            ),
-            children: [
-              for (final entry in byMonth.entries) ...[
-                SectionLabel('${entry.key} · ${entry.value.length}'),
-                InsetGroup(
-                  separatorIndent: 0,
-                  children: [
-                    for (final session in entry.value)
-                      _SessionRow(session: session),
-                  ],
-                ),
-              ],
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  Space.xs,
-                  Space.lg,
-                  Space.xs,
-                  0,
-                ),
-                child: Text(
-                  'Deslize uma sessão para a esquerda para excluí-la. Um treino '
-                  'excluído deixa de contar na evolução.',
-                  style: AppText.footnote.copyWith(
-                    color: context.colors.textTertiary,
-                    height: 1.45,
+          return [
+            AppSliverList(
+              children: [
+                for (final entry in byMonth.entries) ...[
+                  SectionLabel('${entry.key} · ${entry.value.length}'),
+                  InsetGroup(
+                    separatorIndent: AppRow.textInset(40),
+                    children: [
+                      for (final session in entry.value)
+                        _SessionRow(session: session),
+                    ],
+                  ),
+                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.xs,
+                    Space.lg,
+                    Space.xs,
+                    0,
+                  ),
+                  child: Text(
+                    'Deslize uma sessão para a esquerda para excluí-la. Um treino '
+                    'excluído deixa de contar na evolução.',
+                    style: AppText.footnote.copyWith(
+                      color: context.colors.textTertiary,
+                      height: 1.45,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
+              ],
+            ),
+          ];
         },
       ),
     );
@@ -114,12 +118,12 @@ class _SessionRow extends ConsumerWidget {
         showChevron: true,
         onTap: () => context.push('/sessao/${session.id}?de=Histórico'),
         leading: Container(
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
+          decoration: ShapeDecoration(
             color: c.surfaceInput,
-            borderRadius: BorderRadius.circular(11),
+            shape: AppShapes.superellipse(Radii.md),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -130,9 +134,10 @@ class _SessionRow extends ConsumerWidget {
               ),
               Text(
                 DateFormat('MMM', 'pt_BR').format(finished).toLowerCase(),
-                style: AppText.caption.copyWith(
-                  color: c.textTertiary,
-                  fontSize: 9,
+                style: AppText.caption2.copyWith(
+                  color: c.textSecondary,
+                  fontSize: 10,
+                  height: 1.1,
                 ),
               ),
             ],

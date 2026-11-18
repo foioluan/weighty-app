@@ -8,53 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:treino/app/design/design.dart';
-import 'package:treino/domain/models/enums.dart';
 
 /// Renderiza os componentes reais em PNG, com as fontes, cores e widgets do
 /// app, para decidir design olhando em vez de imaginando.
 ///
 ///   flutter test test/mockups_test.dart --dart-define=OUT=/caminho
 const out = String.fromEnvironment('OUT', defaultValue: '/tmp');
-
-// ---------------------------------------------------------------- dados falsos
-
-class MockSet {
-  const MockSet(this.type, this.reps, [this.repsMax, this.segments = 1]);
-  final SetType type;
-  final int? reps;
-  final int? repsMax;
-  final int segments;
-}
-
-class MockExercise {
-  const MockExercise(this.name, this.group, this.sets);
-  final String name;
-  final MuscleGroup group;
-  final List<MockSet> sets;
-}
-
-const demo = [
-  MockExercise('Supino reto com barra', MuscleGroup.peito, [
-    MockSet(SetType.aquecimento, 12),
-    MockSet(SetType.normal, 8, 12),
-    MockSet(SetType.normal, 8, 12),
-    MockSet(SetType.normal, 8, 12),
-    MockSet(SetType.drop, 8, null, 3),
-  ]),
-  MockExercise('Remada curvada', MuscleGroup.costas, [
-    MockSet(SetType.normal, 10),
-    MockSet(SetType.normal, 10),
-    MockSet(SetType.normal, 10),
-  ]),
-  MockExercise('Elevação lateral', MuscleGroup.ombros, [
-    MockSet(SetType.normal, 12, 15),
-    MockSet(SetType.cluster, 6, null, 3),
-  ]),
-  MockExercise('Rosca direta', MuscleGroup.biceps, [
-    MockSet(SetType.normal, null),
-    MockSet(SetType.normal, null),
-  ]),
-];
 
 // ------------------------------------------------------------------- harness
 
@@ -63,6 +22,7 @@ Future<void> _loadFonts() async {
     'Inter-Regular.ttf',
     'Inter-Medium.ttf',
     'Inter-SemiBold.ttf',
+    'Inter-Bold.ttf',
   ]) {
     final bytes = await File('assets/fonts/$file').readAsBytes();
     await (FontLoader(
@@ -206,68 +166,6 @@ Future<void> shootApp(
 
 // ------------------------------------------------------------------- maquetes
 
-/// O card do exercício como ele vai ficar: selo, nome, grupo, ⋯ e a fileira de
-/// chips no lugar de uma linha por série.
-Widget exerciseCard(BuildContext context, MockExercise e) {
-  final c = context.colors;
-
-  return AppCard(
-    padding: const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.md, Space.lg),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            ExerciseAvatar(name: e.name, group: e.group),
-            const SizedBox(width: Space.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    e.name,
-                    style: AppText.title3.copyWith(color: c.textPrimary),
-                  ),
-                  Text(
-                    e.group.label,
-                    style: AppText.caption.copyWith(color: c.textTertiary),
-                  ),
-                ],
-              ),
-            ),
-            AppIconButton(
-              icon: LucideIcons.ellipsis,
-              size: 18,
-              tapSize: 38,
-              label: 'Opções',
-              onPressed: () {},
-            ),
-          ],
-        ),
-        const SizedBox(height: Space.lg),
-        Padding(
-          padding: const EdgeInsets.only(right: Space.sm),
-          child: Wrap(
-            spacing: Space.sm,
-            runSpacing: Space.sm,
-            children: [
-              for (final s in e.sets)
-                SetChip(
-                  type: s.type,
-                  targetReps: s.reps,
-                  targetRepsMax: s.repsMax,
-                  segmentCount: s.segments,
-                  onTap: () {},
-                ),
-              SetChip.add(onTap: () {}),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 /// Uma tela com barra de abas, para o toast ter algo por baixo a respeitar.
 class DemoTabScreen extends StatelessWidget {
   const DemoTabScreen({super.key, required this.bodyKey});
@@ -281,7 +179,7 @@ class DemoTabScreen extends StatelessWidget {
     final c = context.colors;
 
     return ToastInset(
-      bottom: 54 + MediaQuery.paddingOf(context).bottom,
+      bottom: AppTabBar.reservedHeight(context),
       child: Scaffold(
         backgroundColor: c.bg,
         body: SafeArea(
@@ -344,48 +242,6 @@ void main() {
 
   for (final dark in [true, false]) {
     final suffix = dark ? 'dark' : 'light';
-
-    testWidgets('editor com chips · $suffix', (tester) async {
-      await shoot(tester, 'editor-$suffix', const Size(390, 720), (context) {
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(
-            Space.xl,
-            Space.md,
-            Space.xl,
-            Space.xxxl,
-          ),
-          children: [
-            const AppBackLink(label: 'Treinos'),
-            const SizedBox(height: Space.md),
-            Text(
-              'Upper 1',
-              style: AppText.largeTitle.copyWith(
-                color: context.colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: Space.xl),
-            for (final e in demo) ...[
-              exerciseCard(context, e),
-              const SizedBox(height: Space.lg),
-            ],
-            InsetGroup(
-              children: [
-                AppRow(
-                  title: 'Adicionar exercício',
-                  titleColor: context.colors.accent,
-                  leading: Icon(
-                    LucideIcons.plus,
-                    size: 19,
-                    color: context.colors.accent,
-                  ),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ],
-        );
-      }, dark: dark);
-    });
 
     testWidgets('toast curto sobre a barra de abas · $suffix', (tester) async {
       await shootApp(

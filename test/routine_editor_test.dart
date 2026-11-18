@@ -1,8 +1,8 @@
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:treino/app/design/design.dart';
 import 'package:treino/app/providers.dart';
 import 'package:treino/data/db/database.dart';
@@ -113,6 +113,61 @@ void main() {
     });
   });
 
+  group('posições das séries', () {
+    Future<List<PlannedSet>> setsOf(int linkId) =>
+        (db.select(db.plannedSets)
+              ..where((t) => t.routineExerciseId.equals(linkId))
+              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+            .get();
+
+    test('apagar a série do meio renumera as que ficam', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      await routines.removeSet(before[1].id);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1]);
+      // A ordem é a mesma: só os números fecharam o buraco.
+      expect(after.map((s) => s.id), [before[0].id, before[2].id]);
+    });
+
+    test('a série nova depois de apagar não repete posição', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      await routines.removeSet(before[1].id);
+      final added = await routines.addSet(linkId, targetReps: 10);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1, 2]);
+      expect(after.last.id, added);
+    });
+
+    test('acrescentar conserta posições que já estavam repetidas', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      // O estado que a versão anterior deixava: buraco e posição repetida.
+      await (db.update(db.plannedSets)..where((t) => t.id.equals(before[1].id)))
+          .write(const PlannedSetsCompanion(position: Value(2)));
+
+      final added = await routines.addSet(linkId);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1, 2, 3]);
+      expect(after.map((s) => s.id), [
+        before[0].id,
+        before[1].id,
+        before[2].id,
+        added,
+      ]);
+    });
+  });
+
   group('tela do editor', () {
     Widget wrap(int routineId) => ProviderScope(
       overrides: [databaseProvider.overrideWithValue(db)],
@@ -135,7 +190,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
     }
 
-    testWidgets('cada série vira um chip, com o tipo no rótulo', (
+    testWidgets('o exercício mostra o resumo e abre com as séries', (
       tester,
     ) async {
       final exercises = await catalog();
@@ -144,15 +199,97 @@ void main() {
       await tester.pumpWidget(wrap(routineId));
       await settle(tester);
 
-      // Aquecimento, uma normal de 8-12 e um drop de 3 quedas sem alvo.
-      expect(find.text('aq'), findsOneWidget);
-      expect(find.text('8-12'), findsOneWidget);
-      expect(find.text('D 3'), findsOneWidget);
-      // O chip de adicionar fecha a fileira.
-      expect(find.byType(SetChip), findsNWidgets(4));
+      // Uma linha que resume, no lugar da fileira de chips repetidos.
+      expect(find.text('aquecimento + 1 × 8–12 + drop'), findsOneWidget);
+      expect(find.text('1 exercício · 3 séries'), findsOneWidget);
 
-      // Nenhuma linha repetindo o nome do tipo, que era a massa visual antiga.
-      expect(find.text('Normal'), findsNothing);
+      // O primeiro exercício já vem aberto, com uma linha por série.
+      expect(find.text('Aquecimento'), findsOneWidget);
+      expect(find.text('Série 1'), findsOneWidget);
+      expect(find.text('Drop set'), findsOneWidget);
+      expect(find.text('3 quedas'), findsOneWidget);
+      expect(find.text('8–12'), findsOneWidget);
+
+      // Tocar no cabeçalho recolhe.
+      await tester.tap(find.text(exercises[0].name));
+      await settle(tester);
+      expect(find.text('Série 1'), findsNothing);
+
+      await teardownTree(tester);
+    });
+
+    testWidgets('o + anda a faixa de repetições inteira', (tester) async {
+      final exercises = await catalog();
+      final (routineId, _) = await seedRoutine(exercises[0].id);
+
+      await tester.pumpWidget(wrap(routineId));
+      await settle(tester);
+
+      await tester.tap(find.bySemanticsLabel('Mais · Repetições da série 1'));
+      await settle(tester);
+
+      expect(find.text('9–13'), findsOneWidget);
+      final detail = await routines.detail(routineId);
+      final set = detail!.exercises.single.sets[1];
+      expect((set.targetReps, set.targetRepsMax), (9, 13));
+
+      await teardownTree(tester);
+    });
+
+    testWidgets('o selo troca o tipo da série', (tester) async {
+      final exercises = await catalog();
+      final (routineId, _) = await seedRoutine(exercises[0].id);
+
+      await tester.pumpWidget(wrap(routineId));
+      await settle(tester);
+
+      await tester.tap(find.bySemanticsLabel('Tipo: Normal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cluster set'));
+      await tester.pumpAndSettle();
+
+      final detail = await routines.detail(routineId);
+      final set = detail!.exercises.single.sets[1];
+      expect(set.setType, SetType.cluster);
+      // Virar cluster começa com três blocos e mantém o alvo.
+      expect(set.segmentCount, 3);
+      expect((set.targetReps, set.targetRepsMax), (8, 12));
+
+      await teardownTree(tester);
+    });
+
+    testWidgets('deslizar uma série apaga', (tester) async {
+      final exercises = await catalog();
+      final (routineId, _) = await seedRoutine(exercises[0].id);
+
+      await tester.pumpWidget(wrap(routineId));
+      await settle(tester);
+
+      await tester.drag(find.text('Série 1'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Série 1'), findsNothing);
+      final detail = await routines.detail(routineId);
+      expect(detail!.exercises.single.sets.map((s) => s.setType), [
+        SetType.aquecimento,
+        SetType.drop,
+      ]);
+
+      await teardownTree(tester);
+    });
+
+    testWidgets('iniciar treino fica na base e só sem exercício desliga', (
+      tester,
+    ) async {
+      final empty = await routines.createRoutine('Vazio');
+
+      await tester.pumpWidget(wrap(empty));
+      await settle(tester);
+
+      final button = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, 'Iniciar treino'),
+      );
+      expect(button.onPressed, isNull);
 
       await teardownTree(tester);
     });
@@ -166,29 +303,35 @@ void main() {
       await tester.pumpWidget(wrap(routineId));
       await settle(tester);
 
-      await tester.tap(find.byIcon(LucideIcons.ellipsis));
+      await tester.tap(find.bySemanticsLabel(RegExp('^Opções de ')));
       await tester.pumpAndSettle();
 
       expect(find.text('Substituir exercício'), findsOneWidget);
       expect(find.text('Duplicar última série'), findsOneWidget);
       expect(find.text('Remover do treino'), findsOneWidget);
 
-      // A folha abraça as três linhas em vez de ocupar a tela toda. Só
-      // apareceu no aparelho: o Column do InsetGroup esticava sempre que a
-      // altura era limitada, e numa lista ela nunca é.
-      final sheet = tester.getRect(
-        find.ancestor(
-          of: find.text('Substituir exercício'),
-          matching: find.byType(InsetGroup),
-        ),
+      // O menu abraça as três linhas e nasce junto do botão que o abriu — e
+      // não lá embaixo, como a folha que ele substituiu.
+      final menu = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Substituir exercício'),
+              matching: find.byType(GlassSurface),
+            )
+            .first,
+      );
+      final button = tester.getRect(
+        find.bySemanticsLabel(RegExp('^Opções de ')),
       );
       final screen = tester.getRect(find.byType(MaterialApp));
-      expect(sheet.height, lessThan(screen.height / 2));
+      expect(menu.height, lessThan(screen.height / 3));
+      expect((menu.top - button.bottom).abs(), lessThan(24));
+      expect(menu.right, closeTo(button.right, 24));
 
       await teardownTree(tester);
     });
 
-    testWidgets('substituir troca o exercício e mantém os chips', (
+    testWidgets('substituir troca o exercício e mantém as séries', (
       tester,
     ) async {
       final exercises = await catalog();
@@ -198,7 +341,7 @@ void main() {
       await settle(tester);
       expect(find.text(exercises[0].name), findsOneWidget);
 
-      await tester.tap(find.byIcon(LucideIcons.ellipsis));
+      await tester.tap(find.bySemanticsLabel(RegExp('^Opções de ')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Substituir exercício'));
       await tester.pumpAndSettle();
@@ -218,8 +361,7 @@ void main() {
       expect(find.text(exercises[1].name), findsOneWidget);
       expect(find.text(exercises[0].name), findsNothing);
       // As séries continuam lá: é a diferença entre substituir e recomeçar.
-      expect(find.text('aq'), findsOneWidget);
-      expect(find.text('8-12'), findsOneWidget);
+      expect(find.text('aquecimento + 1 × 8–12 + drop'), findsOneWidget);
 
       await teardownTree(tester);
     });
@@ -231,7 +373,7 @@ void main() {
       await tester.pumpWidget(wrap(routineId));
       await settle(tester);
 
-      await tester.tap(find.byIcon(LucideIcons.ellipsis));
+      await tester.tap(find.bySemanticsLabel(RegExp('^Opções de ')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remover do treino'));
       await tester.pumpAndSettle();
@@ -242,30 +384,6 @@ void main() {
       await tester.tap(find.text('Cancelar'));
       await settle(tester);
       expect(find.text(exercises[0].name), findsOneWidget);
-
-      await teardownTree(tester);
-    });
-
-    testWidgets('tocar num chip abre a série, com a opção de excluir', (
-      tester,
-    ) async {
-      final exercises = await catalog();
-      final (routineId, _) = await seedRoutine(exercises[0].id);
-
-      await tester.pumpWidget(wrap(routineId));
-      await settle(tester);
-
-      await tester.tap(find.text('8-12'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Excluir série'), findsOneWidget);
-      expect(find.text('Salvar série'), findsOneWidget);
-
-      await tester.tap(find.text('Excluir série'));
-      await settle(tester);
-
-      expect(find.text('8-12'), findsNothing);
-      expect(find.text('aq'), findsOneWidget);
 
       await teardownTree(tester);
     });

@@ -44,7 +44,11 @@ class WeightyApp extends ConsumerWidget {
       scrollBehavior: const AppScrollBehavior(),
       // A abertura entra por aqui e não como rota: assim o app é construído
       // embaixo dela e já está pronto quando ela sai.
-      builder: (_, child) => SplashGate(child: child ?? const SizedBox()),
+      //
+      // O BackdropGroup faz os vidros da tela dividirem uma passada de
+      // desfoque, em vez de cada um desfocar o fundo por conta própria.
+      builder: (_, child) =>
+          BackdropGroup(child: SplashGate(child: child ?? const SizedBox())),
       routerConfig: router,
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR')],

@@ -4,5 +4,5 @@
      o sistema pinta antes de o Flutter existir precisa ser indistinguível do
      primeiro quadro que o app desenha. -->
 <resources>
-    <color name="splash_background">#F4F5F7</color>
+    <color name="splash_background">#F2F2F7</color>
 </resources>

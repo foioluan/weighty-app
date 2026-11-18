@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme.dart';
+import 'glass.dart';
 
 enum ToastKind { info, success, error }
 
@@ -258,42 +259,35 @@ class _ToastViewState extends State<_ToastView>
                   onTap: hide,
                   onVerticalDragUpdate: _onDragUpdate,
                   onVerticalDragEnd: _onDragEnd,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Space.xl,
-                      vertical: Space.lg,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.surfaceRaised,
-                      borderRadius: BorderRadius.circular(Radii.pill),
-                      border: Border.all(color: c.hairlineStrong, width: 0.5),
-                      // O toast é o único elemento que flutua sem BlurBarrier
-                      // atrás, então precisa de sombra para se separar do
-                      // conteúdo — mas bem mais leve que a anterior.
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: c.isDark ? 0.34 : 0.10,
-                          ),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                  // Cápsula de vidro, a mesma linguagem da barra de abas logo
+                  // abaixo dela. O vidro do toast é mais denso: ele carrega
+                  // texto, e o conteúdo desfocado atrás não pode competir.
+                  child: Theme(
+                    data: Theme.of(context).copyWith(extensions: [c]),
+                    child: GlassSurface.capsule(
+                      fill: c.surfaceRaised.withValues(alpha: 0.82),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.xl,
+                          vertical: Space.lg,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(icon, size: 16, color: tone),
-                        const SizedBox(width: Space.md),
-                        Flexible(
-                          child: Text(
-                            widget.message,
-                            style: AppText.callout.copyWith(
-                              color: c.textPrimary,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: 18, color: tone),
+                            const SizedBox(width: Space.md),
+                            Flexible(
+                              child: Text(
+                                widget.message,
+                                style: AppText.subheadline.copyWith(
+                                  color: c.textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -387,12 +381,20 @@ class BlurBarrier extends StatelessWidget {
         final t = progress.value.clamp(0.0, 1.0);
         return Stack(
           children: [
+            // IgnorePointer: o ColoredBox abaixo é opaco ao toque e engolia o
+            // toque fora da folha, que nunca chegava à barreira do diálogo —
+            // tocar fora não fechava nada, apesar do barrierDismissible.
             Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: sigma * t, sigmaY: sigma * t),
-                child: ColoredBox(
-                  color: Colors.black.withValues(
-                    alpha: (isDark ? 0.45 : 0.25) * t,
+              child: IgnorePointer(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: sigma * t,
+                    sigmaY: sigma * t,
+                  ),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(
+                      alpha: (isDark ? 0.45 : 0.25) * t,
+                    ),
                   ),
                 ),
               ),
@@ -423,71 +425,70 @@ class _AppDialog<T> extends StatelessWidget {
     // quebra e o alerta fica desalinhado.
     final horizontal = actions.length == 2;
 
+    final buttons = [
+      for (final action in actions) _DialogButton<T>(action: action),
+    ];
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(Space.xxxl),
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 300),
-            decoration: BoxDecoration(
-              color: c.surfaceRaised,
-              borderRadius: BorderRadius.circular(Radii.xl),
-              border: Border.all(color: c.hairline, width: 0.5),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Space.xxl,
-                    Space.xxl,
-                    Space.xxl,
-                    Space.xxl,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: AppText.title2.copyWith(color: c.textPrimary),
-                      ),
-                      if (message != null) ...[
-                        const SizedBox(height: Space.md),
-                        Text(
-                          message!,
-                          textAlign: TextAlign.center,
-                          style: AppText.callout.copyWith(
-                            color: c.textSecondary,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            // Alerta do iOS 26: vidro denso de canto grande e botões em
+            // cápsula, no lugar da caixa com botões separados por linhas.
+            child: GlassSurface(
+              radius: Radii.xl,
+              fill: c.surfaceRaised.withValues(alpha: 0.86),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Space.xxl,
+                  Space.xxl + 2,
+                  Space.xxl,
+                  Space.xl,
                 ),
-                Container(height: 0.5, color: c.hairline),
-                if (horizontal)
-                  Row(
-                    children: [
-                      for (var i = 0; i < actions.length; i++) ...[
-                        if (i > 0)
-                          Container(width: 0.5, height: 46, color: c.hairline),
-                        Expanded(child: _DialogButton<T>(action: actions[i])),
-                      ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: AppText.headline.copyWith(color: c.textPrimary),
+                    ),
+                    if (message != null) ...[
+                      const SizedBox(height: Space.sm),
+                      Text(
+                        message!,
+                        textAlign: TextAlign.center,
+                        style: AppText.subheadline.copyWith(
+                          color: c.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
                     ],
-                  )
-                else
-                  Column(
-                    children: [
-                      for (var i = 0; i < actions.length; i++) ...[
-                        if (i > 0) Container(height: 0.5, color: c.hairline),
-                        _DialogButton<T>(action: actions[i]),
-                      ],
-                    ],
-                  ),
-              ],
+                    const SizedBox(height: Space.xxl),
+                    if (horizontal)
+                      Row(
+                        children: [
+                          Expanded(child: buttons[0]),
+                          const SizedBox(width: Space.md + 2),
+                          Expanded(child: buttons[1]),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          for (var i = 0; i < buttons.length; i++) ...[
+                            if (i > 0) const SizedBox(height: Space.md),
+                            buttons[i],
+                          ],
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -504,21 +505,38 @@ class _DialogButton<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final color = action.isDestructive ? c.down : c.accent;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.pop(context, action.value as T?),
-      child: SizedBox(
-        height: 46,
-        child: Center(
-          child: Text(
-            action.label,
-            style: AppText.body.copyWith(
-              color: color,
-              fontWeight: action.isPreferred
-                  ? FontWeight.w600
-                  : FontWeight.w400,
+    // A preferida é cheia; a destrutiva, vermelha sobre o tom dela; as demais,
+    // neutras. Vermelho cheio fica de fora: no app, vermelho forte é
+    // "regrediu", e um botão não deve gritar isso.
+    final (bg, fg) = switch ((action.isPreferred, action.isDestructive)) {
+      (_, true) => (c.downSubtle, c.down),
+      (true, false) => (c.accent, c.onAccent),
+      (false, false) => (c.fill, c.textPrimary),
+    };
+
+    return Semantics(
+      button: true,
+      label: action.label,
+      excludeSemantics: true,
+      child: PressScale(
+        onTap: () => Navigator.pop(context, action.value as T?),
+        scale: 0.96,
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+          decoration: ShapeDecoration(color: bg, shape: const StadiumBorder()),
+          child: Center(
+            child: Text(
+              action.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.headline.copyWith(
+                color: fg,
+                fontWeight: action.isPreferred
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -576,46 +594,273 @@ class _SheetBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
     return Material(
       color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: c.surfaceRaised,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(Radii.xl),
-          ),
-          border: Border(top: BorderSide(color: c.hairline, width: 0.5)),
+      child: Padding(
+        // Folha flutuante, solta das bordas, como as folhas de altura parcial
+        // do iOS 26. O canto de baixo acompanha o do aparelho.
+        padding: EdgeInsets.fromLTRB(
+          Space.md,
+          0,
+          Space.md,
+          Space.md + (bottom > 0 ? 0 : Space.xs),
         ),
         child: SafeArea(
           top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: GlassSurface(
+            radius: Radii.xl,
+            fill: c.surfaceRaised.withValues(alpha: 0.9),
+            child: MediaQuery.removePadding(
+              // A margem e a área segura já foram aplicadas por fora; quem
+              // monta o conteúdo da folha não precisa somá-las de novo.
+              context: context,
+              removeBottom: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: Space.md,
+                      bottom: Space.xs,
+                    ),
+                    child: Container(
+                      width: 36,
+                      height: 5,
+                      decoration: ShapeDecoration(
+                        color: c.hairlineStrong,
+                        shape: const StadiumBorder(),
+                      ),
+                    ),
+                  ),
+                  if (title != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.xxl,
+                        Space.sm,
+                        Space.xxl,
+                        Space.xs,
+                      ),
+                      child: Text(
+                        title!,
+                        textAlign: TextAlign.center,
+                        style: AppText.headline.copyWith(color: c.textPrimary),
+                      ),
+                    ),
+                  Flexible(child: builder(context)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Item de [showAppMenu].
+class AppMenuItem<T> {
+  const AppMenuItem({
+    required this.label,
+    required this.value,
+    this.icon,
+    this.isDestructive = false,
+    this.selected = false,
+  });
+
+  final String label;
+  final T value;
+  final IconData? icon;
+  final bool isDestructive;
+
+  /// A opção em vigor, num menu de escolha (o tipo da série): ganha um ✓ no
+  /// lugar do ícone.
+  final bool selected;
+}
+
+/// Menu suspenso de vidro, nascendo do botão que o abriu — o menu do `⋯` no
+/// iOS.
+///
+/// Substitui a folha que subia da base com as ações de um item: a folha
+/// levava o olho para longe do que foi tocado e cobria a tela inteira por
+/// três opções. O menu abre ao lado do botão, cresce a partir dele e some
+/// com qualquer toque fora.
+Future<T?> showAppMenu<T>(
+  BuildContext anchorContext, {
+  required List<AppMenuItem<T>> items,
+}) {
+  final box = anchorContext.findRenderObject()! as RenderBox;
+  final overlay =
+      Navigator.of(anchorContext).overlay!.context.findRenderObject()!
+          as RenderBox;
+  final anchor = Rect.fromPoints(
+    box.localToGlobal(Offset.zero, ancestor: overlay),
+    box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+  );
+
+  return showGeneralDialog<T>(
+    context: anchorContext,
+    barrierDismissible: true,
+    barrierLabel: 'Fechar menu',
+    barrierColor: Colors.black.withValues(
+      alpha: anchorContext.colors.isDark ? 0.3 : 0.12,
+    ),
+    transitionDuration: const Duration(milliseconds: 340),
+    pageBuilder: (context, _, _) =>
+        _MenuLayout<T>(anchor: anchor, items: items),
+    // A animação mora no próprio menu, que sabe de onde ele cresce.
+    transitionBuilder: (_, _, _, child) => child,
+  );
+}
+
+class _MenuLayout<T> extends StatelessWidget {
+  const _MenuLayout({required this.anchor, required this.items});
+
+  final Rect anchor;
+  final List<AppMenuItem<T>> items;
+
+  static const _width = 250.0;
+  static const _rowHeight = 48.0;
+  static const _gap = Space.sm;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final height = items.length * _rowHeight;
+
+    // Abre para baixo quando cabe; senão, para cima. Alinha pela borda do
+    // botão que estiver do lado de dentro da tela.
+    final below =
+        anchor.bottom + _gap + height < size.height - padding.bottom - Space.xl;
+    final alignRight = anchor.center.dx > size.width / 2;
+
+    final left = (alignRight ? anchor.right - _width : anchor.left).clamp(
+      Space.md,
+      size.width - _width - Space.md,
+    );
+    final top = below ? anchor.bottom + _gap : anchor.top - _gap - height;
+
+    final animation = ModalRoute.of(context)!.animation!;
+    final curved = CurvedAnimation(
+      parent: animation,
+      // Passa um pouco do tamanho e volta: o menu "salta" do botão.
+      curve: const Cubic(0.3, 1.3, 0.5, 1),
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return Stack(
+      children: [
+        Positioned(
+          left: left,
+          top: top,
+          width: _width,
+          child: FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0, 0.5),
+            ),
+            child: ScaleTransition(
+              scale: Tween(begin: 0.4, end: 1.0).animate(curved),
+              alignment: Alignment(alignRight ? 1 : -1, below ? -1 : 1),
+              child: _Menu<T>(items: items, rowHeight: _rowHeight),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Menu<T> extends StatelessWidget {
+  const _Menu({required this.items, required this.rowHeight});
+
+  final List<AppMenuItem<T>> items;
+  final double rowHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
+    return Material(
+      color: Colors.transparent,
+      child: GlassSurface(
+        radius: Radii.lg,
+        fill: c.surfaceRaised.withValues(alpha: 0.84),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              if (i > 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+                  child: Container(height: 0.5, color: c.hairline),
+                ),
+              _MenuRow<T>(item: items[i], height: rowHeight),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuRow<T> extends StatefulWidget {
+  const _MenuRow({required this.item, required this.height});
+
+  final AppMenuItem<T> item;
+  final double height;
+
+  @override
+  State<_MenuRow<T>> createState() => _MenuRowState<T>();
+}
+
+class _MenuRowState<T> extends State<_MenuRow<T>> {
+  var _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final tone = widget.item.isDestructive ? c.down : c.textPrimary;
+
+    return Semantics(
+      button: true,
+      label: widget.item.label,
+      selected: widget.item.selected,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTap: () => Navigator.pop(context, widget.item.value),
+        child: AnimatedContainer(
+          duration: AppDurations.fast,
+          height: widget.height,
+          color: _down ? c.fill : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: Space.md, bottom: Space.xs),
-                child: Container(
-                  width: 34,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: c.hairlineStrong,
-                    borderRadius: BorderRadius.circular(2),
+              Expanded(
+                child: Text(
+                  widget.item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body.copyWith(
+                    color: tone,
+                    fontWeight: widget.item.selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
                   ),
                 ),
               ),
-              if (title != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Space.xxl,
-                    Space.md,
-                    Space.xxl,
-                    Space.xs,
-                  ),
-                  child: Text(
-                    title!,
-                    style: AppText.title2.copyWith(color: c.textPrimary),
-                  ),
-                ),
-              Flexible(child: builder(context)),
+              if (widget.item.selected) ...[
+                const SizedBox(width: Space.md),
+                Icon(LucideIcons.check, size: 19, color: c.accent),
+              ] else if (widget.item.icon != null) ...[
+                const SizedBox(width: Space.md),
+                Icon(widget.item.icon, size: 19, color: tone),
+              ],
             ],
           ),
         ),

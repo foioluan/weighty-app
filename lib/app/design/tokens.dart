@@ -13,24 +13,61 @@ abstract final class Space {
   static const xl = 16.0;
   static const xxl = 20.0;
   static const xxxl = 28.0;
+
+  /// Margem lateral das telas. 20, como nas telas do iOS: com cartões de canto
+  /// grande, 16 deixava a curva encostada na borda do aparelho.
+  static const page = 20.0;
 }
 
+/// Raios. Os grandes seguem o iOS 26: cartão de 26 e folha de 32, concêntricos
+/// com o canto do aparelho. Todos são desenhados como superelipse
+/// ([AppShapes]), e não como arco de círculo — é a curva contínua, sem a
+/// "quina" onde o arco encontra a reta, que faz um canto grande parecer Apple
+/// e não um retângulo arredondado qualquer.
 abstract final class Radii {
-  static const sm = 8.0;
-  static const md = 11.0;
-  static const lg = 14.0;
-  static const xl = 18.0;
+  static const sm = 10.0;
+  static const md = 12.0;
+
+  /// Cartão e grupo de lista.
+  static const lg = 26.0;
+
+  /// Folha, diálogo e menu.
+  static const xl = 32.0;
   static const pill = 999.0;
 }
 
-/// Alturas de controle. 44 é o alvo de toque confortável do iOS e o que a mão
-/// suada precisa; 34 é para controles secundários que não são o caminho
-/// principal.
+/// Formas de canto contínuo.
+abstract final class AppShapes {
+  static RoundedSuperellipseBorder superellipse(
+    double radius, {
+    BorderSide side = BorderSide.none,
+  }) => RoundedSuperellipseBorder(
+    borderRadius: BorderRadius.all(Radius.circular(radius)),
+    side: side,
+  );
+
+  /// Decoração de superfície com canto contínuo. Substitui o
+  /// `BoxDecoration(borderRadius: ...)`, cujo arco circular é exatamente a
+  /// quina que se tenta evitar.
+  static ShapeDecoration surface(
+    Color color, {
+    double radius = Radii.lg,
+    List<BoxShadow>? shadows,
+  }) => ShapeDecoration(
+    color: color,
+    shape: superellipse(radius),
+    shadows: shadows,
+  );
+}
+
+/// Alturas de controle. 50 é o botão grande do iOS e o que a mão suada
+/// precisa; 36 é para controles secundários que não são o caminho principal.
+/// Linha de lista com 52 acompanha o corpo de 17 px.
 abstract final class Heights {
-  static const control = 44.0;
-  static const controlCompact = 34.0;
-  static const cell = 38.0;
-  static const row = 46.0;
+  static const control = 50.0;
+  static const controlCompact = 36.0;
+  static const cell = 44.0;
+  static const row = 52.0;
 }
 
 /// Prefixado porque `Durations` já existe no material.dart do Flutter.
@@ -67,6 +104,11 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.flat,
     required this.upSubtle,
     required this.downSubtle,
+    required this.fill,
+    required this.glassFill,
+    required this.glassEdge,
+    required this.glassHighlight,
+    required this.glassShadow,
     required this.isDark,
   });
 
@@ -109,54 +151,83 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color upSubtle;
   final Color downSubtle;
 
+  /// Preenchimento neutro: realce de toque, trilho de controle, polegar
+  /// inativo. É o `systemFill` do iOS.
+  final Color fill;
+
+  /// Vidro (Liquid Glass): preenchimento translúcido por cima do desfoque.
+  final Color glassFill;
+
+  /// Borda de 1 px do vidro, que some em degradê para baixo.
+  final Color glassEdge;
+
+  /// Realce interno no topo do vidro — o reflexo que faz a superfície ler
+  /// como volume e não como película.
+  final Color glassHighlight;
+
+  final Color glassShadow;
+
   final bool isDark;
 
-  // Fundo mais escuro e superfícies mais claras que na primeira versão: com
-  // pouco contraste entre card e página, tudo virava um bloco só.
+  // Cinzas de sistema da Apple. Fundo preto puro no escuro: é o que deixa o
+  // cartão #1C1C1E se separar sem borda nenhuma, e o que o vidro precisa para
+  // parecer vidro.
   static const dark = AppColors(
-    bg: Color(0xFF08090B),
-    surface: Color(0xFF15181C),
-    surfaceRaised: Color(0xFF1E2227),
-    surfaceInput: Color(0xFF262B31),
-    hairline: Color(0x14FFFFFF),
-    hairlineStrong: Color(0x26FFFFFF),
-    textPrimary: Color(0xFFF2F3F5),
-    textSecondary: Color(0xFF9BA1A8),
-    textTertiary: Color(0xFF6E7378),
-    textGhost: Color(0xFF4A4E55),
-    accent: Color(0xFFE0A64B),
-    accentPressed: Color(0xFFC28F3D),
-    onAccent: Color(0xFF1A1408),
-    accentSubtle: Color(0x24E0A64B),
-    up: Color(0xFF34C759),
+    bg: Color(0xFF000000),
+    surface: Color(0xFF1C1C1E),
+    surfaceRaised: Color(0xFF232325),
+    surfaceInput: Color(0xFF2E2E31),
+    hairline: Color(0x2EFFFFFF),
+    hairlineStrong: Color(0x47FFFFFF),
+    textPrimary: Color(0xFFFFFFFF),
+    textSecondary: Color(0xFF98989F),
+    textTertiary: Color(0xFF6C6C72),
+    textGhost: Color(0xFF48484A),
+    accent: Color(0xFFF5B24A),
+    accentPressed: Color(0xFFDA9C3A),
+    onAccent: Color(0xFF1E1405),
+    accentSubtle: Color(0x2EF5B24A),
+    up: Color(0xFF30D158),
     down: Color(0xFFFF453A),
-    flat: Color(0xFF8A9099),
-    upSubtle: Color(0x2434C759),
-    downSubtle: Color(0x24FF453A),
+    flat: Color(0xFF8E8E93),
+    upSubtle: Color(0x2930D158),
+    downSubtle: Color(0x29FF453A),
+    fill: Color(0x3D78788C),
+    glassFill: Color(0x70232327),
+    glassEdge: Color(0x33FFFFFF),
+    glassHighlight: Color(0x40FFFFFF),
+    glassShadow: Color(0x66000000),
     isDark: true,
   );
 
   static const light = AppColors(
-    bg: Color(0xFFF4F5F7),
+    bg: Color(0xFFF2F2F7),
     surface: Color(0xFFFFFFFF),
     surfaceRaised: Color(0xFFFFFFFF),
-    surfaceInput: Color(0xFFEDEFF2),
-    hairline: Color(0x14000000),
-    hairlineStrong: Color(0x24000000),
-    textPrimary: Color(0xFF16181B),
-    textSecondary: Color(0xFF5F6570),
-    textTertiary: Color(0xFF8A9099),
-    textGhost: Color(0xFFB3B9C2),
+    surfaceInput: Color(0xFFEEEEF0),
+    hairline: Color(0x1F000000),
+    hairlineStrong: Color(0x33000000),
+    textPrimary: Color(0xFF000000),
+    textSecondary: Color(0xFF6C6C70),
+    textTertiary: Color(0xFF8E8E93),
+    textGhost: Color(0xFFC4C4C7),
     // Bronze escurecido: o tom do escuro não passa contraste sobre branco.
-    accent: Color(0xFF9A6E14),
-    accentPressed: Color(0xFF7E5A0F),
+    // #A36800 e não o #A86B00 do estudo, que ficava em 4,4:1 — abaixo dos
+    // 4,5:1 que o texto pequeno precisa.
+    accent: Color(0xFFA36800),
+    accentPressed: Color(0xFF855500),
     onAccent: Color(0xFFFFFFFF),
-    accentSubtle: Color(0x1F9A6E14),
-    up: Color(0xFF1B7F3B),
-    down: Color(0xFFC5221F),
-    flat: Color(0xFF6E7378),
-    upSubtle: Color(0x1F1B7F3B),
-    downSubtle: Color(0x1FC5221F),
+    accentSubtle: Color(0x1FA36800),
+    up: Color(0xFF248A3D),
+    down: Color(0xFFD70015),
+    flat: Color(0xFF6C6C70),
+    upSubtle: Color(0x1F248A3D),
+    downSubtle: Color(0x1FD70015),
+    fill: Color(0x24787880),
+    glassFill: Color(0xA6FFFFFF),
+    glassEdge: Color(0xCCFFFFFF),
+    glassHighlight: Color(0xFFFFFFFF),
+    glassShadow: Color(0x24000000),
     isDark: false,
   );
 

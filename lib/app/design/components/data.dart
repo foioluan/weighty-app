@@ -39,22 +39,25 @@ class ExerciseAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = context.colors.forMuscleGroup(group);
+    final c = context.colors;
+    final tone = c.forMuscleGroup(group);
 
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: tone.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(size * 0.3),
-        border: Border.all(color: tone.withValues(alpha: 0.3), width: 0.5),
+      // Sem contorno, como os ícones de Ajustes do iOS: o tom de fundo já
+      // basta, e a linha em volta só engrossava o desenho.
+      decoration: ShapeDecoration(
+        color: tone.withValues(alpha: c.isDark ? 0.2 : 0.14),
+        shape: AppShapes.superellipse(size * 0.28),
       ),
       child: Text(
         initialsOf(name),
         style: AppText.caption.copyWith(
           color: tone,
-          fontWeight: FontWeight.w600,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
         ),
       ),
@@ -121,60 +124,93 @@ class StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
 
-    return Container(
-      padding: const EdgeInsets.all(Space.lg),
-      decoration: BoxDecoration(
+    return ClipRSuperellipse(
+      borderRadius: BorderRadius.circular(Radii.lg - 6),
+      child: ColoredBox(
         color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: c.hairline, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: AppText.overline.copyWith(color: c.textTertiary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.lg,
+            vertical: Space.lg + 2,
           ),
-          const SizedBox(height: Space.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                child: Text(
-                  value,
-                  style: AppText.numberMedium.copyWith(color: c.textPrimary),
+              _Shrink(
+                Text(
+                  label.isEmpty
+                      ? label
+                      : label[0].toUpperCase() + label.substring(1),
+                  style: AppText.footnote.copyWith(
+                    color: c.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (unit != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 2),
-                  child: Text(
-                    unit!,
-                    style: AppText.caption.copyWith(color: c.textTertiary),
+              const SizedBox(height: Space.xs),
+              // Encolhe em vez de cortar: "10.1…" escondia justamente o número,
+              // que é a única coisa que o cartão existe para mostrar.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      value,
+                      style: AppText.numberMedium.copyWith(
+                        color: c.textPrimary,
+                      ),
+                      maxLines: 1,
+                    ),
+                    if (unit != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Text(
+                          unit!,
+                          style: AppText.footnote.copyWith(
+                            color: c.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (footnote != null) ...[
+                const SizedBox(height: Space.xs),
+                _Shrink(
+                  Text(
+                    footnote!,
+                    style: AppText.caption.copyWith(
+                      color: footnoteColor ?? c.textTertiary,
+                    ),
+                    maxLines: 1,
                   ),
                 ),
+              ],
             ],
           ),
-          if (footnote != null) ...[
-            const SizedBox(height: Space.xs),
-            Text(
-              footnote!,
-              style: AppText.caption.copyWith(
-                color: footnoteColor ?? c.textTertiary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
+}
+
+/// Texto de uma linha que encolhe em vez de cortar, nos cartões estreitos.
+class _Shrink extends StatelessWidget {
+  const _Shrink(this.child);
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: child,
+  );
 }
 
 /// Etiqueta de veredito. Sem preenchimento sólido: só o texto na cor, com uma
@@ -257,104 +293,6 @@ class ColumnHeader extends StatelessWidget {
           ],
           SizedBox(width: trailingWidth),
         ],
-      ),
-    );
-  }
-}
-
-/// A série planejada em forma de chip.
-///
-/// Substitui a linha inteira por série no editor: um exercício de 4×10 virava
-/// quatro linhas quase idênticas repetindo a palavra "Normal" — a maior massa
-/// visual da tela, e a de menor informação. Em chip, "4×10" se lê de relance.
-///
-/// A cor carrega o tipo, então o rótulo não precisa repetir "Normal" em todas:
-/// só os tipos que fogem do comum ganham letra e destaque.
-class SetChip extends StatelessWidget {
-  const SetChip({
-    super.key,
-    required this.type,
-    required this.targetReps,
-    required this.targetRepsMax,
-    this.segmentCount = 1,
-    this.onTap,
-  }) : _isAdd = false;
-
-  /// O chip de "adicionar série", no fim da fileira. Mesma altura dos outros
-  /// para a linha não ficar torta.
-  const SetChip.add({super.key, this.onTap})
-    : type = SetType.normal,
-      targetReps = null,
-      targetRepsMax = null,
-      segmentCount = 1,
-      _isAdd = true;
-
-  final SetType type;
-  final int? targetReps;
-  final int? targetRepsMax;
-  final int segmentCount;
-  final VoidCallback? onTap;
-  final bool _isAdd;
-
-  /// "10", "8-12" ou "—" quando não há alvo.
-  String get _reps => switch ((targetReps, targetRepsMax)) {
-    (null, _) => '—',
-    (final a?, null) => '$a',
-    (final a?, final b?) => '$a-$b',
-  };
-
-  String get _label => switch (type) {
-    SetType.aquecimento => 'aq',
-    SetType.drop => _multiLabel('D'),
-    SetType.cluster => _multiLabel('C'),
-    SetType.normal => _reps,
-  };
-
-  /// "D 3×8" quando há alvo; só "D 3" quando não há — o "×" pedindo um número
-  /// que não existe ficava "D 3×—", que não quer dizer nada.
-  String _multiLabel(String letter) => targetReps == null
-      ? '$letter $segmentCount'
-      : '$letter $segmentCount×$_reps';
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-
-    final (background, foreground, border) = switch (type) {
-      // O aquecimento não conta para nenhum indicador, então também não pesa
-      // na fileira: só o contorno.
-      SetType.aquecimento => (Colors.transparent, c.textTertiary, c.hairline),
-      SetType.drop || SetType.cluster => (c.accentSubtle, c.accent, null),
-      SetType.normal => (c.surfaceInput, c.textPrimary, null),
-    };
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: Heights.controlCompact,
-        constraints: const BoxConstraints(minWidth: Heights.controlCompact),
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-        decoration: BoxDecoration(
-          color: _isAdd ? Colors.transparent : background,
-          borderRadius: BorderRadius.circular(Radii.sm),
-          border: _isAdd
-              ? Border.all(color: c.hairlineStrong, width: 0.5)
-              : border == null
-              ? null
-              : Border.all(color: border, width: 0.5),
-        ),
-        // widthFactor: um Center sem ele cresce até a largura máxima permitida,
-        // e dentro de um Wrap isso faz cada chip ocupar a linha inteira.
-        child: Center(
-          widthFactor: 1,
-          child: _isAdd
-              ? Icon(LucideIcons.plus, size: 15, color: c.accent)
-              : Text(
-                  _label,
-                  style: AppText.numberSmall.copyWith(color: foreground),
-                ),
-        ),
       ),
     );
   }
