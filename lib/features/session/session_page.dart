@@ -9,6 +9,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../app/design/design.dart';
 import '../../app/formatting.dart';
 import '../../app/providers.dart';
+import '../../data/db/database.dart' show SetSegment;
 import '../../data/repos/session_repository.dart';
 import '../../domain/metrics/progress_metrics.dart';
 import '../../domain/models/enums.dart';
@@ -75,22 +76,26 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         }
 
         final exercises = live.exercises;
-        final current = exercises.isEmpty
-            ? 0
-            : _page.clamp(0, exercises.length - 1);
+        final total = exercises.fold(0, (sum, e) => sum + e.sets.length);
+        final done = exercises.fold(
+          0,
+          (sum, e) => sum + e.sets.where((s) => s.set.completed).length,
+        );
 
         return AppScaffold(
           title: live.session.routineName,
+          // O cronômetro e o progresso cabem embaixo do título: a faixa com
+          // barra que ocupava uma linha inteira da tela saiu.
+          subtitle: '${formatDuration(_elapsed)} · $done de $total séries',
           actions: [
+            if (exercises.length > 1)
+              AppNavIcon(
+                icon: LucideIcons.listOrdered,
+                label: 'Exercícios do treino',
+                onTap: () => _openList(live),
+              ),
             GlassTextButton(label: 'Finalizar', onTap: () => _finish(live)),
           ],
-          banner: exercises.isEmpty
-              ? null
-              : _SessionStrip(
-                  exercises: exercises,
-                  current: current,
-                  elapsed: _elapsed,
-                ),
           body: exercises.isEmpty
               ? const EmptyState(
                   title: 'Treino vazio',
@@ -106,39 +111,65 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                   itemBuilder: (context, i) => _ExercisePanel(
                     sessionId: widget.sessionId,
                     exercise: exercises[i],
+                    index: i,
+                    count: exercises.length,
+                    next: i + 1 < exercises.length ? exercises[i + 1] : null,
+                    onNext: () => _goTo(i + 1),
+                    onFinish: () => _finish(live),
                   ),
-                ),
-          bottomBar: exercises.length < 2
-              ? null
-              : Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'Anterior',
-                        icon: LucideIcons.chevronLeft,
-                        style: AppButtonStyle.plain,
-                        compact: true,
-                        onPressed: current == 0
-                            ? null
-                            : () => _goTo(current - 1),
-                      ),
-                    ),
-                    const SizedBox(width: Space.md),
-                    Expanded(
-                      child: AppButton(
-                        label: 'Próximo',
-                        style: AppButtonStyle.tinted,
-                        compact: true,
-                        onPressed: current == exercises.length - 1
-                            ? null
-                            : () => _goTo(current + 1),
-                      ),
-                    ),
-                  ],
                 ),
         );
       },
     );
+  }
+
+  /// Lista dos exercícios com o progresso de cada um, para pular direto.
+  Future<void> _openList(LiveSession live) async {
+    final c = context.colors;
+    final chosen = await showAppSheet<int>(
+      context,
+      title: 'Exercícios',
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          Space.xl,
+          Space.md,
+          Space.xl,
+          Space.xl,
+        ),
+        child: SingleChildScrollView(
+          child: InsetGroup(
+            separatorIndent: AppRow.textInset(),
+            children: [
+              for (var i = 0; i < live.exercises.length; i++)
+                Builder(
+                  builder: (_) {
+                    final e = live.exercises[i];
+                    final doneSets = e.sets
+                        .where((s) => s.set.completed)
+                        .length;
+                    final complete =
+                        e.sets.isNotEmpty && doneSets == e.sets.length;
+                    return AppRow(
+                      title: e.exercise.name,
+                      subtitle: '$doneSets de ${e.sets.length} séries',
+                      titleColor: i == _page ? c.accent : null,
+                      leading: ExerciseAvatar(
+                        name: e.exercise.name,
+                        group: e.exercise.muscleGroup,
+                      ),
+                      trailing: complete
+                          ? Icon(LucideIcons.circleCheck, size: 20, color: c.up)
+                          : null,
+                      onTap: () => Navigator.pop(sheetContext, i),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (chosen != null) _goTo(chosen);
   }
 
   void _goTo(int page) {
@@ -182,233 +213,564 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 }
 
-/// Faixa de contexto: onde você está no treino, quanto já concluiu e o tempo.
-class _SessionStrip extends StatelessWidget {
-  const _SessionStrip({
-    required this.exercises,
-    required this.current,
-    required this.elapsed,
+/// Um exercício da sessão: as séries em pílulas, a série escolhida em
+/// destaque e a ação na base.
+///
+/// Uma decisão por tela. A versão anterior empilhava a série de agora num
+/// cartão e todas as outras em linhas apagadas abaixo dele; o olho tinha que
+/// achar a série certa no meio da lista, e as futuras, a 45%, pareciam
+/// desabilitadas.
+class _ExercisePanel extends ConsumerStatefulWidget {
+  const _ExercisePanel({
+    required this.sessionId,
+    required this.exercise,
+    required this.index,
+    required this.count,
+    required this.next,
+    required this.onNext,
+    required this.onFinish,
   });
 
-  final List<LiveExercise> exercises;
-  final int current;
-  final Duration elapsed;
+  final int sessionId;
+  final LiveExercise exercise;
+  final int index;
+  final int count;
+  final LiveExercise? next;
+  final VoidCallback onNext;
+  final VoidCallback onFinish;
+
+  @override
+  ConsumerState<_ExercisePanel> createState() => _ExercisePanelState();
+}
+
+class _ExercisePanelState extends ConsumerState<_ExercisePanel> {
+  /// Série escolhida pelo toque numa pílula. Nulo segue a série de agora — a
+  /// primeira não concluída —, que é o que acontece depois de concluir.
+  int? _selected;
+
+  /// Resultado da série que acabou de ser concluída, mostrado por um instante
+  /// no topo do cartão.
+  _Flash? _flash;
+  Timer? _flashTimer;
+
+  @override
+  void dispose() {
+    _flashTimer?.cancel();
+    super.dispose();
+  }
+
+  List<LiveSet> get _sets => widget.exercise.sets;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final total = exercises.fold(0, (sum, e) => sum + e.sets.length);
-    final done = exercises.fold(
-      0,
-      (sum, e) => sum + e.sets.where((s) => s.set.completed).length,
-    );
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        Space.xl,
-        Space.md,
-        Space.xl,
-        Space.md,
-      ),
-      child: Row(
-        children: [
-          Text(
-            '$done DE $total SÉRIES',
-            style: AppText.overline.copyWith(color: c.textTertiary),
-          ),
-          const SizedBox(width: Space.lg),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: total == 0 ? 0 : done / total),
-                duration: AppDurations.slow,
-                curve: Curves.easeOutCubic,
-                builder: (context, value, _) => LinearProgressIndicator(
-                  value: value,
-                  minHeight: 3,
-                  backgroundColor: c.hairlineStrong,
-                  valueColor: AlwaysStoppedAnimation(c.accent),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: Space.lg),
-          Text(
-            formatDuration(elapsed),
-            style: AppText.numberSmall.copyWith(color: c.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExercisePanel extends ConsumerWidget {
-  const _ExercisePanel({required this.sessionId, required this.exercise});
-
-  final int sessionId;
-  final LiveExercise exercise;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = context.colors;
+    final exercise = widget.exercise;
     final last = ref.watch(
       lastPerformanceProvider((
         exerciseId: exercise.exercise.id,
-        sessionId: sessionId,
+        sessionId: widget.sessionId,
       )),
     );
     final lastSets = last.valueOrNull ?? const <PerformedSet>[];
 
-    // A primeira série sem concluir é a "de agora": ela recebe o card em foco.
-    // As demais viram linha compacta — concluídas com o delta, futuras apagadas.
-    final activeIndex = exercise.sets.indexWhere((s) => !s.set.completed);
+    final active = _sets.indexWhere((s) => !s.set.completed);
+    final selected = (_selected != null && _selected! < _sets.length)
+        ? _selected
+        : null;
+    final current = selected ?? (active >= 0 ? active : null);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        Space.xl,
-        Space.lg,
-        Space.xl,
-        Space.xxxl,
-      ),
+    final liveSet = current == null ? null : _sets[current];
+    final previous = liveSet == null
+        ? null
+        : _previousFor(lastSets, liveSet.set.position);
+
+    return Column(
       children: [
-        Row(
-          children: [
-            ExerciseAvatar(
-              name: exercise.exercise.name,
-              group: exercise.exercise.muscleGroup,
-              size: 40,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              Space.page,
+              Space.sm,
+              Space.page,
+              Space.xl,
             ),
-            const SizedBox(width: Space.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    exercise.exercise.name,
-                    style: AppText.title2.copyWith(color: c.textPrimary),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    _planLine(exercise, lastSets.isEmpty),
-                    style: AppText.footnote.copyWith(color: c.textTertiary),
-                  ),
-                ],
+            children: [
+              Text(
+                'Exercício ${widget.index + 1} de ${widget.count} · '
+                '${exercise.exercise.muscleGroup.label}',
+                style: AppText.subheadline.copyWith(
+                  color: c.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                exercise.exercise.name,
+                style: AppText.title1.copyWith(color: c.textPrimary),
+              ),
+              const SizedBox(height: Space.lg),
+              _SetPills(
+                sets: _sets,
+                current: current,
+                onSelect: (i) {
+                  Haptics.tick();
+                  setState(() => _selected = i == active ? null : i);
+                },
+                onAdd: () {
+                  Haptics.tick();
+                  ref
+                      .read(sessionRepositoryProvider)
+                      .addExtraSet(exercise.link.id);
+                },
+              ),
+              const SizedBox(height: Space.xl),
+              if (liveSet != null)
+                _SetHero(
+                  sessionId: widget.sessionId,
+                  liveSet: liveSet,
+                  previous: previous,
+                  title: _titleFor(current!),
+                  flash: _flash,
+                )
+              else
+                _ExerciseDone(sets: _sets, lastSets: lastSets, flash: _flash),
+            ],
+          ),
         ),
-        const SizedBox(height: Space.xl),
-        for (var i = 0; i < exercise.sets.length; i++)
-          _SetSlot(
-            sessionId: sessionId,
-            liveSet: exercise.sets[i],
-            number: _workingNumber(exercise.sets, i),
-            previous: _previousFor(lastSets, exercise.sets[i].set.position),
-            isActive: i == activeIndex,
-          ),
-        const SizedBox(height: Space.md),
-        Center(
-          child: AppButton(
-            label: 'Série extra',
-            icon: LucideIcons.plus,
-            style: AppButtonStyle.plain,
-            compact: true,
-            onPressed: () {
-              Haptics.tick();
-              ref.read(sessionRepositoryProvider).addExtraSet(exercise.link.id);
-            },
-          ),
+        _Footer(
+          next: widget.next,
+          onNext: widget.onNext,
+          primary: _primaryAction(context, liveSet, previous, active),
         ),
       ],
     );
   }
 
-  /// Resumo do planejado. Fica no subtítulo em vez de dentro de cada célula —
-  /// era o rótulo por célula que desalinhava a coluna de repetições.
-  String _planLine(LiveExercise exercise, bool isFirstTime) {
-    final targets = exercise.sets
-        .where((s) => s.set.setType != SetType.aquecimento)
-        .map((s) => s.plannedTargetReps)
-        .whereType<int>()
-        .toSet();
+  /// A ação cheia da base muda conforme o momento: concluir a série,
+  /// desfazer uma já concluída, ou seguir adiante quando o exercício acabou.
+  Widget _primaryAction(
+    BuildContext context,
+    LiveSet? liveSet,
+    PerformedSet? previous,
+    int active,
+  ) {
+    if (liveSet != null && liveSet.set.completed) {
+      return AppButton(
+        label: 'Desfazer conclusão',
+        icon: LucideIcons.undo2,
+        style: AppButtonStyle.tinted,
+        expand: true,
+        onPressed: () async {
+          Haptics.tick();
+          await ref
+              .read(sessionRepositoryProvider)
+              .setCompleted(liveSet.set.id, false);
+          if (mounted) setState(() => _selected = null);
+        },
+      );
+    }
+    if (liveSet != null) {
+      // A única ação cheia de largura total do app: é tocada com a mão
+      // suada, entre séries, sem olhar a tela.
+      return AppButton(
+        label: 'Concluir série',
+        icon: LucideIcons.check,
+        expand: true,
+        onPressed: () => _complete(context, liveSet, previous),
+      );
+    }
+    final isLast = widget.next == null;
+    return AppButton(
+      label: isLast ? 'Finalizar treino' : 'Próximo exercício',
+      icon: isLast ? LucideIcons.flag : LucideIcons.arrowRight,
+      expand: true,
+      onPressed: isLast ? widget.onFinish : widget.onNext,
+    );
+  }
 
-    final plan = switch (targets.length) {
-      0 => '${exercise.sets.length} séries',
-      1 => '${exercise.sets.length} séries · alvo ${targets.first} reps',
-      _ => '${exercise.sets.length} séries · alvo variado',
+  String _titleFor(int index) {
+    final set = _sets[index].set;
+    return switch (set.setType) {
+      SetType.aquecimento => 'Aquecimento',
+      SetType.drop => 'Drop set',
+      SetType.cluster => 'Cluster set',
+      SetType.normal =>
+        'Série ${_workingNumber(_sets, index)} de '
+            '${_sets.where((s) => s.set.setType != SetType.aquecimento).length}',
     };
-
-    return isFirstTime ? '$plan · primeira vez' : plan;
   }
 
-  /// Aquecimento não entra na numeração das séries de trabalho.
-  String _workingNumber(List<LiveSet> sets, int index) {
-    if (sets[index].set.setType == SetType.aquecimento) return 'aq';
-    var n = 0;
-    for (var i = 0; i <= index; i++) {
-      if (sets[i].set.setType != SetType.aquecimento) n++;
-    }
-    return '$n';
-  }
+  Future<void> _complete(
+    BuildContext context,
+    LiveSet liveSet,
+    PerformedSet? previous,
+  ) async {
+    final repo = ref.read(sessionRepositoryProvider);
 
-  PerformedSet? _previousFor(List<PerformedSet> lastSets, int position) {
-    for (final set in lastSets) {
-      if (set.position == position) return set;
+    // Concluir sem digitar repete a última vez. O preenchimento é campo a
+    // campo: subir só a carga no passo não pode deixar as reps zeradas.
+    final filled = <SegmentData>[];
+    for (var i = 0; i < liveSet.segments.length; i++) {
+      final segment = liveSet.segments[i];
+      final source = previous?.segments;
+      final reference =
+          (source != null && i < source.length && source[i].isFilled)
+          ? source[i]
+          : null;
+
+      final weight = segment.weightKg == 0 ? reference?.weightKg : null;
+      final reps = segment.reps == 0 ? reference?.reps : null;
+
+      if (weight != null || reps != null) {
+        await repo.updateSegment(segment.id, weightKg: weight, reps: reps);
+      }
+      filled.add(
+        SegmentData(
+          weightKg: weight ?? segment.weightKg,
+          reps: reps ?? segment.reps,
+        ),
+      );
     }
-    return null;
+
+    // Série sem repetição nenhuma não é dado, é engano de digitação.
+    if (!filled.any((s) => s.isFilled)) {
+      Haptics.warn();
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          'Informe as repetições da série.',
+          kind: ToastKind.error,
+        );
+      }
+      return;
+    }
+
+    Haptics.confirm();
+    await repo.setCompleted(liveSet.set.id, true);
+    if (!mounted) return;
+
+    final index = _sets.indexOf(liveSet);
+    final performed = PerformedSet(
+      position: liveSet.set.position,
+      type: liveSet.set.setType,
+      segments: filled,
+    );
+    _flashTimer?.cancel();
+    setState(() {
+      _selected = null;
+      _flash = _Flash(
+        label: liveSet.set.setType == SetType.normal
+            ? 'Série ${_workingNumber(_sets, index)} concluída'
+            : '${_titleFor(index)} concluído',
+        comparison: compareSet(performed, previous),
+      );
+    });
+    _flashTimer = Timer(const Duration(milliseconds: 2400), () {
+      if (mounted) setState(() => _flash = null);
+    });
   }
 }
 
-/// Decide qual das três formas a série assume.
-class _SetSlot extends ConsumerWidget {
-  const _SetSlot({
+/// Resultado de uma série recém-concluída.
+class _Flash {
+  const _Flash({required this.label, required this.comparison});
+
+  final String label;
+  final SetComparison comparison;
+}
+
+/// Aquecimento não entra na numeração das séries de trabalho.
+String _workingNumber(List<LiveSet> sets, int index) {
+  if (sets[index].set.setType == SetType.aquecimento) return 'aq';
+  var n = 0;
+  for (var i = 0; i <= index; i++) {
+    if (sets[i].set.setType != SetType.aquecimento) n++;
+  }
+  return '$n';
+}
+
+PerformedSet? _previousFor(List<PerformedSet> lastSets, int position) {
+  for (final set in lastSets) {
+    if (set.position == position) return set;
+  }
+  return null;
+}
+
+/// "+2,5 kg", "+1 rep", "igual", ou nulo sem referência.
+String? _describeDelta(SetComparison comparison) {
+  if (!comparison.hasReference) return null;
+  final kg = comparison.deltaKg ?? 0;
+  if (kg != 0) return '${formatDelta(kg)} kg';
+  final reps = comparison.deltaReps ?? 0;
+  if (reps != 0) {
+    final unit = reps.abs() == 1 ? 'rep' : 'reps';
+    return '${reps > 0 ? '+' : '−'}${reps.abs()} $unit';
+  }
+  return 'igual';
+}
+
+/// As séries do exercício numa fileira: concluídas em verde, a escolhida
+/// cheia, as demais neutras. Tocar escolhe; o "+" acrescenta uma série extra.
+class _SetPills extends StatelessWidget {
+  const _SetPills({
+    required this.sets,
+    required this.current,
+    required this.onSelect,
+    required this.onAdd,
+  });
+
+  final List<LiveSet> sets;
+  final int? current;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
+    return Wrap(
+      spacing: Space.sm,
+      runSpacing: Space.sm,
+      children: [
+        for (var i = 0; i < sets.length; i++)
+          Builder(
+            builder: (context) {
+              final type = sets[i].set.setType;
+              final done = sets[i].set.completed;
+              final selected = i == current;
+              final label = switch (type) {
+                SetType.aquecimento => 'aq',
+                SetType.drop => 'D',
+                SetType.cluster => 'C',
+                SetType.normal => _workingNumber(sets, i),
+              };
+
+              final (bg, fg) = switch ((selected, done)) {
+                (true, true) => (c.up, Colors.white),
+                (true, false) => (c.accent, c.onAccent),
+                (false, true) => (c.upSubtle, c.up),
+                (false, false) => (c.fill, c.textSecondary),
+              };
+
+              return Semantics(
+                button: true,
+                selected: selected,
+                label: done ? 'Série $label, concluída' : 'Série $label',
+                excludeSemantics: true,
+                child: PressScale(
+                  onTap: () => onSelect(i),
+                  scale: 0.9,
+                  child: AnimatedContainer(
+                    duration: AppDurations.base,
+                    curve: Curves.easeOutCubic,
+                    height: 40,
+                    constraints: const BoxConstraints(minWidth: 48),
+                    padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+                    decoration: ShapeDecoration(
+                      color: bg,
+                      shape: const StadiumBorder(),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (done) ...[
+                          Icon(LucideIcons.check, size: 14, color: fg),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          label,
+                          style: AppText.subheadline.copyWith(
+                            color: fg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        Semantics(
+          button: true,
+          label: 'Série extra',
+          excludeSemantics: true,
+          child: PressScale(
+            onTap: onAdd,
+            scale: 0.9,
+            child: Container(
+              height: 40,
+              width: 48,
+              decoration: ShapeDecoration(
+                color: c.accentSubtle,
+                shape: const StadiumBorder(),
+              ),
+              child: Icon(LucideIcons.plus, size: 18, color: c.accent),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A série escolhida, em destaque: carga grande com − e +, repetições logo
+/// abaixo, e a comparação com a última vez ao vivo.
+class _SetHero extends ConsumerWidget {
+  const _SetHero({
     required this.sessionId,
     required this.liveSet,
-    required this.number,
     required this.previous,
-    required this.isActive,
+    required this.title,
+    required this.flash,
   });
 
   final int sessionId;
   final LiveSet liveSet;
-  final String number;
   final PerformedSet? previous;
-  final bool isActive;
+  final String title;
+  final _Flash? flash;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (liveSet.set.completed) {
-      return _CompactRow(
-        number: number,
-        liveSet: liveSet,
-        previous: previous,
-        completed: true,
-        onTap: () => _setCompleted(ref, false),
-      );
-    }
-    if (isActive) {
-      return _FocusCard(
-        number: number,
-        liveSet: liveSet,
-        previous: previous,
-        onComplete: () => _complete(context, ref),
-        onUpdate: (i, {weightKg, reps}) =>
-            _updateSegment(ref, i, weightKg: weightKg, reps: reps),
-        onStep: (delta) => _stepWeight(ref, delta),
-      );
-    }
-    return _CompactRow(
-      number: number,
-      liveSet: liveSet,
-      previous: previous,
-      completed: false,
-      onTap: null,
+    final c = context.colors;
+    final type = liveSet.set.setType;
+    final step = ref.watch(weightIncrementProvider);
+    final done = liveSet.set.completed;
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(
+        Space.xxl,
+        Space.xl,
+        Space.xxl,
+        Space.xxl,
+      ),
+      child: Column(
+        children: [
+          _FlashLine(flash: flash),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (done) ...[
+                Icon(LucideIcons.circleCheck, size: 16, color: c.up),
+                const SizedBox(width: Space.xs),
+              ],
+              Text(
+                done ? '$title · concluída' : title,
+                style: AppText.subheadline.copyWith(
+                  color: done ? c.up : c.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          if (type.isMultiSegment)
+            for (var i = 0; i < liveSet.segments.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: Space.md),
+                child: _SegmentRow(
+                  index: i,
+                  type: type,
+                  segment: liveSet.segments[i],
+                  previous: _segmentOf(previous, i),
+                  onWeight: (v) => _update(ref, i, weightKg: v),
+                  onReps: (v) => _update(ref, i, reps: v),
+                ),
+              )
+          else ...[
+            Row(
+              children: [
+                _RoundStep(
+                  icon: LucideIcons.minus,
+                  size: 58,
+                  label: 'Diminuir ${formatWeight(step)} kg',
+                  onTap: () => _stepWeight(ref, -step),
+                ),
+                Expanded(
+                  child: _TapValue(
+                    value: _first?.weightKg ?? 0,
+                    ghost: _segmentOf(previous, 0)?.weightKg,
+                    unit: 'kg',
+                    style: AppText.numberLarge.copyWith(fontSize: 56),
+                    semantics: 'Carga',
+                    onTap: () => _pickWeight(context, ref, 0),
+                  ),
+                ),
+                _RoundStep(
+                  icon: LucideIcons.plus,
+                  size: 58,
+                  label: 'Aumentar ${formatWeight(step)} kg',
+                  onTap: () => _stepWeight(ref, step),
+                ),
+              ],
+            ),
+            const SizedBox(height: Space.sm),
+            _ReferenceLine(liveSet: liveSet, previous: previous),
+            const SizedBox(height: Space.xl),
+            Container(height: 0.5, color: c.hairline),
+            const SizedBox(height: Space.xl),
+            Row(
+              children: [
+                _RoundStep(
+                  icon: LucideIcons.minus,
+                  size: 46,
+                  label: 'Diminuir uma repetição',
+                  onTap: () => _stepReps(ref, -1),
+                ),
+                Expanded(
+                  child: _TapValue(
+                    value: (_first?.reps ?? 0).toDouble(),
+                    ghost: _segmentOf(previous, 0)?.reps.toDouble(),
+                    unit: 'reps',
+                    style: AppText.numberLarge.copyWith(fontSize: 34),
+                    semantics: 'Repetições',
+                    onTap: () => _pickReps(context, ref, 0),
+                  ),
+                ),
+                _RoundStep(
+                  icon: LucideIcons.plus,
+                  size: 46,
+                  label: 'Aumentar uma repetição',
+                  onTap: () => _stepReps(ref, 1),
+                ),
+              ],
+            ),
+            if (_target != null) ...[
+              const SizedBox(height: Space.xs),
+              Text(
+                _target!,
+                style: AppText.footnote.copyWith(color: c.textSecondary),
+              ),
+            ],
+          ],
+          if (type.isMultiSegment) ...[
+            const SizedBox(height: Space.lg),
+            _ReferenceLine(liveSet: liveSet, previous: previous),
+          ],
+        ],
+      ),
     );
   }
 
-  Future<void> _updateSegment(
+  SetSegment? get _first =>
+      liveSet.segments.isEmpty ? null : liveSet.segments.first;
+
+  String? get _target =>
+      switch ((liveSet.plannedTargetReps, liveSet.plannedTargetRepsMax)) {
+        (null, _) => null,
+        (final a?, null) => 'alvo $a',
+        (final a?, final b?) => 'alvo $a–$b',
+      };
+
+  SegmentData? _segmentOf(PerformedSet? set, int index) {
+    final segments = set?.segments;
+    if (segments == null || index >= segments.length) return null;
+    return segments[index].isFilled ? segments[index] : null;
+  }
+
+  Future<void> _update(
     WidgetRef ref,
     int index, {
     double? weightKg,
@@ -425,257 +787,380 @@ class _SetSlot extends ConsumerWidget {
   }
 
   Future<void> _stepWeight(WidgetRef ref, double delta) async {
-    if (liveSet.segments.isEmpty) return;
-    final segment = liveSet.segments.first;
+    final segment = _first;
+    if (segment == null) return;
 
     // Partindo do zero, o passo sobe a partir da carga da última vez em vez de
     // começar em 2,5 kg — é quase sempre o que se quer.
     final base = segment.weightKg > 0
         ? segment.weightKg
         : (previous?.referenceLoadKg ?? 0);
-    final next = (base + delta).clamp(0.0, 999.0);
-
     Haptics.tick();
-    await ref
-        .read(sessionRepositoryProvider)
-        .updateSegment(segment.id, weightKg: next);
+    await _update(ref, 0, weightKg: (base + delta).clamp(0.0, 999.0));
   }
 
-  Future<void> _setCompleted(WidgetRef ref, bool value) async {
+  Future<void> _stepReps(WidgetRef ref, int delta) async {
+    final segment = _first;
+    if (segment == null) return;
+    final base = segment.reps > 0
+        ? segment.reps
+        : (_segmentOf(previous, 0)?.reps ?? liveSet.plannedTargetReps ?? 0);
     Haptics.tick();
-    await ref
-        .read(sessionRepositoryProvider)
-        .setCompleted(liveSet.set.id, value);
+    await _update(ref, 0, reps: (base + delta).clamp(0, 999));
   }
 
-  Future<void> _complete(BuildContext context, WidgetRef ref) async {
-    final repo = ref.read(sessionRepositoryProvider);
+  Future<void> _pickWeight(BuildContext context, WidgetRef ref, int i) async {
+    final value = await showNumberPad(
+      context,
+      title: 'Carga',
+      initial: liveSet.segments[i].weightKg,
+      decimal: true,
+      unit: 'kg',
+      lastValue: _segmentOf(previous, i)?.weightKg,
+    );
+    if (value != null) await _update(ref, i, weightKg: value);
+  }
 
-    // Concluir sem digitar repete a última vez. O preenchimento é campo a
-    // campo: subir só a carga no passo não pode deixar as reps zeradas.
-    var filledReps = false;
-    for (var i = 0; i < liveSet.segments.length; i++) {
-      final segment = liveSet.segments[i];
-      final source = previous?.segments;
-      final reference =
-          (source != null && i < source.length && source[i].isFilled)
-          ? source[i]
-          : null;
-
-      final weight = segment.weightKg == 0 ? reference?.weightKg : null;
-      final reps = segment.reps == 0 ? reference?.reps : null;
-
-      if (weight != null || reps != null) {
-        await repo.updateSegment(segment.id, weightKg: weight, reps: reps);
-      }
-      if (segment.reps > 0 || reps != null) filledReps = true;
-    }
-
-    // Série sem repetição nenhuma não é dado, é engano de digitação.
-    if (!filledReps) {
-      Haptics.warn();
-      if (context.mounted) {
-        AppToast.show(
-          context,
-          'Informe as repetições da série.',
-          kind: ToastKind.error,
-        );
-      }
-      return;
-    }
-
-    Haptics.confirm();
-    await repo.setCompleted(liveSet.set.id, true);
+  Future<void> _pickReps(BuildContext context, WidgetRef ref, int i) async {
+    final value = await showNumberPad(
+      context,
+      title: 'Repetições',
+      initial: liveSet.segments[i].reps.toDouble(),
+      unit: 'reps',
+      lastValue: _segmentOf(previous, i)?.reps.toDouble(),
+    );
+    if (value != null) await _update(ref, i, reps: value.round());
   }
 }
 
-/// A série de agora. Recebe a carga em corpo grande, os passos ao lado e o
-/// botão de concluir — é a única coisa da tela que exige ação.
-class _FocusCard extends ConsumerWidget {
-  const _FocusCard({
-    required this.number,
-    required this.liveSet,
-    required this.previous,
-    required this.onComplete,
-    required this.onUpdate,
-    required this.onStep,
-  });
+/// "última vez 75 × 7 · +2,5 kg". O delta é o que a série vai registrar se for
+/// concluída agora — o que foi digitado, ou a última vez onde nada foi.
+class _ReferenceLine extends StatelessWidget {
+  const _ReferenceLine({required this.liveSet, required this.previous});
 
-  final String number;
   final LiveSet liveSet;
   final PerformedSet? previous;
-  final VoidCallback onComplete;
-  final void Function(int index, {double? weightKg, int? reps}) onUpdate;
-  final ValueChanged<double> onStep;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final c = context.colors;
-    final type = liveSet.set.setType;
-    final step = ref.watch(weightIncrementProvider);
+    final style = AppText.footnote.copyWith(color: c.textSecondary);
+    final prev = previous;
 
-    final target = liveSet.plannedTargetReps;
-    final targetMax = liveSet.plannedTargetRepsMax;
-    final reference = previous?.hasData == true
-        ? 'última vez ${formatWeight(previous!.referenceLoadKg!)} × '
-              '${previous!.totalReps}'
-        : 'primeira vez neste exercício';
+    if (prev == null || !prev.hasData) {
+      return Text('primeira vez neste exercício', style: style);
+    }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: Space.lg),
-      padding: const EdgeInsets.all(Space.xxl),
-      // A série de agora é o único cartão em foco da tela: superfície um tom
-      // acima e contorno bronze em vez do degradê, que contra o preto puro
-      // virava uma mancha.
-      decoration: ShapeDecoration(
-        color: c.surface,
-        shape: AppShapes.superellipse(
-          Radii.lg,
-          side: BorderSide(
-            color: c.accent.withValues(alpha: c.isDark ? 0.45 : 0.4),
+    final effective = PerformedSet(
+      position: liveSet.set.position,
+      type: liveSet.set.setType,
+      segments: [
+        for (var i = 0; i < liveSet.segments.length; i++)
+          SegmentData(
+            weightKg: liveSet.segments[i].weightKg > 0
+                ? liveSet.segments[i].weightKg
+                : (i < prev.segments.length ? prev.segments[i].weightKg : 0),
+            reps: liveSet.segments[i].reps > 0
+                ? liveSet.segments[i].reps
+                : (i < prev.segments.length ? prev.segments[i].reps : 0),
           ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      ],
+    );
+    final comparison = compareSet(effective, prev);
+    final delta = comparison.verdict == Verdict.manteve
+        ? null
+        : _describeDelta(comparison);
+
+    return Text.rich(
+      TextSpan(
+        style: style,
         children: [
-          Row(
-            children: [
-              Expanded(
+          TextSpan(
+            text:
+                'última vez ${formatWeight(prev.referenceLoadKg!)} × '
+                '${prev.totalReps}',
+          ),
+          if (delta != null)
+            TextSpan(
+              text: ' · $delta',
+              style: TextStyle(
+                color: c.verdict(comparison.verdict == Verdict.evoluiu),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
+/// A linha "Série 1 concluída · +2,5 kg" que aparece por um instante depois
+/// de concluir — o delta é o motivo do app existir, e merece ser visto na
+/// hora, não só no resumo.
+class _FlashLine extends StatelessWidget {
+  const _FlashLine({required this.flash});
+
+  final _Flash? flash;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final f = flash;
+
+    return AnimatedSize(
+      duration: AppDurations.base,
+      curve: Curves.easeOutCubic,
+      child: f == null
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(bottom: Space.lg),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Space.lg,
+                  vertical: Space.sm,
+                ),
+                decoration: ShapeDecoration(
+                  color: switch (f.comparison.verdict) {
+                    Verdict.evoluiu => c.upSubtle,
+                    Verdict.reduziu => c.downSubtle,
+                    _ => c.fill,
+                  },
+                  shape: const StadiumBorder(),
+                ),
                 child: Text(
-                  type == SetType.aquecimento
-                      ? 'AQUECIMENTO · AGORA'
-                      : '${type == SetType.normal ? 'SÉRIE' : type.label.toUpperCase()} $number · AGORA',
-                  style: AppText.overline.copyWith(color: c.accent),
+                  [f.label, ?_describeDelta(f.comparison)].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppText.subheadline.copyWith(
+                    color: switch (f.comparison.verdict) {
+                      Verdict.evoluiu => c.up,
+                      Verdict.reduziu => c.down,
+                      _ => c.textPrimary,
+                    },
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
+            ),
+    );
+  }
+}
+
+/// Um segmento de drop ou cluster: carga × reps, cada um tocável.
+class _SegmentRow extends StatelessWidget {
+  const _SegmentRow({
+    required this.index,
+    required this.type,
+    required this.segment,
+    required this.previous,
+    required this.onWeight,
+    required this.onReps,
+  });
+
+  final int index;
+  final SetType type;
+  final SetSegment segment;
+  final SegmentData? previous;
+  final ValueChanged<double> onWeight;
+  final ValueChanged<int> onReps;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final noun = type == SetType.drop ? 'queda' : 'bloco';
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            '${index + 1}º $noun',
+            style: AppText.footnote.copyWith(color: c.textSecondary),
+          ),
+        ),
+        Expanded(
+          child: _BoxValue(
+            value: segment.weightKg,
+            ghost: previous?.weightKg,
+            unit: 'kg',
+            semantics: 'Carga do ${index + 1}º $noun',
+            onTap: () async {
+              final v = await showNumberPad(
+                context,
+                title: 'Carga · ${index + 1}º $noun',
+                initial: segment.weightKg,
+                decimal: true,
+                unit: 'kg',
+                lastValue: previous?.weightKg,
+              );
+              if (v != null) onWeight(v);
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+          child: Text(
+            '×',
+            style: AppText.headline.copyWith(color: c.textTertiary),
+          ),
+        ),
+        Expanded(
+          child: _BoxValue(
+            value: segment.reps.toDouble(),
+            ghost: previous?.reps.toDouble(),
+            unit: 'reps',
+            semantics: 'Repetições do ${index + 1}º $noun',
+            onTap: () async {
+              final v = await showNumberPad(
+                context,
+                title: 'Repetições · ${index + 1}º $noun',
+                initial: segment.reps.toDouble(),
+                unit: 'reps',
+                lastValue: previous?.reps.toDouble(),
+              );
+              if (v != null) onReps(v.round());
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Número grande que abre o teclado ao toque. Vazio, mostra a última vez
+/// apagada — concluir sem digitar repete esse valor.
+class _TapValue extends StatelessWidget {
+  const _TapValue({
+    required this.value,
+    required this.ghost,
+    required this.unit,
+    required this.style,
+    required this.semantics,
+    required this.onTap,
+  });
+
+  final double value;
+  final double? ghost;
+  final String unit;
+  final TextStyle style;
+  final String semantics;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final empty = value == 0;
+    final shown = empty ? ghost : value;
+
+    return Semantics(
+      button: true,
+      label: semantics,
+      value: shown == null ? 'vazio' : formatWeight(shown),
+      excludeSemantics: true,
+      child: PressScale(
+        onTap: onTap,
+        scale: 0.95,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
               Text(
-                reference,
-                style: AppText.caption.copyWith(color: c.textTertiary),
+                shown == null ? '—' : formatWeight(shown),
+                style: style.copyWith(
+                  color: empty ? c.textGhost : c.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                unit,
+                style: AppText.headline.copyWith(color: c.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: Space.lg),
-          if (type.isMultiSegment) ...[
-            for (var i = 0; i < liveSet.segments.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: Space.md),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 22,
-                      child: Text(
-                        '${i + 1}ª',
-                        style: AppText.caption.copyWith(color: c.textTertiary),
-                      ),
-                    ),
-                    const SizedBox(width: Space.sm),
-                    Expanded(
-                      child: NumberCell(
-                        value: liveSet.segments[i].weightKg,
-                        hint: _hint(i, weight: true),
-                        decimal: true,
-                        emphasized: true,
-                        onChanged: (v) => onUpdate(i, weightKg: v),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                      child: Text(
-                        '×',
-                        style: AppText.footnote.copyWith(color: c.textTertiary),
-                      ),
-                    ),
-                    Expanded(
-                      child: NumberCell(
-                        value: liveSet.segments[i].reps.toDouble(),
-                        hint: _hint(i, weight: false),
-                        onChanged: (v) => onUpdate(i, reps: v.round()),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ] else ...[
-            Row(
-              children: [
-                _StepSquare(
-                  icon: LucideIcons.minus,
-                  onTap: () => onStep(-step),
-                  label: 'Diminuir ${formatWeight(step)} kg',
-                ),
-                Expanded(
-                  child: BigNumberField(
-                    value: liveSet.segments.isEmpty
-                        ? 0
-                        : liveSet.segments.first.weightKg,
-                    hint: _hint(0, weight: true),
-                    onChanged: (v) => onUpdate(0, weightKg: v),
-                  ),
-                ),
-                _StepSquare(
-                  icon: LucideIcons.plus,
-                  onTap: () => onStep(step),
-                  label: 'Aumentar ${formatWeight(step)} kg',
-                ),
-              ],
-            ),
-            const SizedBox(height: Space.lg),
-            Row(
-              children: [
-                SizedBox(
-                  width: 78,
-                  child: NumberCell(
-                    value: liveSet.segments.isEmpty
-                        ? 0
-                        : liveSet.segments.first.reps.toDouble(),
-                    hint: _hint(0, weight: false),
-                    onChanged: (v) => onUpdate(0, reps: v.round()),
-                  ),
-                ),
-                const SizedBox(width: Space.md),
-                Text(switch ((target, targetMax)) {
-                  (null, _) => 'reps',
-                  (final a?, null) => 'reps · alvo $a',
-                  (final a?, final b?) => 'reps · alvo $a-$b',
-                }, style: AppText.caption.copyWith(color: c.textTertiary)),
-                const Spacer(),
-              ],
-            ),
-          ],
-          const SizedBox(height: Space.xl),
-          // A única ação do app que ocupa a largura inteira: é tocada com a
-          // mão suada, entre séries, sem olhar a tela.
-          AppButton(
-            label: 'Concluir série',
-            icon: LucideIcons.check,
-            expand: true,
-            onPressed: onComplete,
-          ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  String? _hint(int index, {required bool weight}) {
-    final segments = previous?.segments;
-    if (segments == null || index >= segments.length) return null;
-    final segment = segments[index];
-    if (!segment.isFilled) return null;
-    return weight ? formatWeight(segment.weightKg) : '${segment.reps}';
+/// Valor em caixa, para os segmentos de drop e cluster.
+class _BoxValue extends StatelessWidget {
+  const _BoxValue({
+    required this.value,
+    required this.ghost,
+    required this.unit,
+    required this.semantics,
+    required this.onTap,
+  });
+
+  final double value;
+  final double? ghost;
+  final String unit;
+  final String semantics;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final empty = value == 0;
+    final shown = empty ? ghost : value;
+
+    return Semantics(
+      button: true,
+      label: semantics,
+      value: shown == null ? 'vazio' : formatWeight(shown),
+      excludeSemantics: true,
+      child: PressScale(
+        onTap: onTap,
+        scale: 0.95,
+        child: Container(
+          height: 52,
+          alignment: Alignment.center,
+          decoration: ShapeDecoration(
+            color: c.surfaceInput,
+            shape: AppShapes.superellipse(Radii.md + 2),
+          ),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: shown == null ? '—' : formatWeight(shown),
+                  style: AppText.numberMedium.copyWith(
+                    color: empty ? c.textGhost : c.textPrimary,
+                  ),
+                ),
+                TextSpan(
+                  text: ' $unit',
+                  style: AppText.footnote.copyWith(color: c.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class _StepSquare extends StatelessWidget {
-  const _StepSquare({
+/// Botão redondo de passo, grande o bastante para acertar sem olhar.
+class _RoundStep extends StatelessWidget {
+  const _RoundStep({
     required this.icon,
-    required this.onTap,
+    required this.size,
     required this.label,
+    required this.onTap,
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+  final double size;
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -683,105 +1168,127 @@ class _StepSquare extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      excludeSemantics: true,
+      child: PressScale(
         onTap: onTap,
+        scale: 0.88,
         child: Container(
-          width: 46,
-          height: 46,
+          width: size,
+          height: size,
           decoration: ShapeDecoration(
-            color: c.surfaceInput,
-            shape: AppShapes.superellipse(Radii.md + 2),
+            color: c.fill,
+            shape: const CircleBorder(),
           ),
-          child: Center(child: Icon(icon, size: 20, color: c.textPrimary)),
+          child: Icon(icon, size: size * 0.42, color: c.textPrimary),
         ),
       ),
     );
   }
 }
 
-/// Série concluída ou ainda por vir, em uma linha.
-class _CompactRow extends StatelessWidget {
-  const _CompactRow({
-    required this.number,
-    required this.liveSet,
-    required this.previous,
-    required this.completed,
-    required this.onTap,
+/// Exercício terminado: o que foi feito em cada série, com o delta.
+class _ExerciseDone extends StatelessWidget {
+  const _ExerciseDone({
+    required this.sets,
+    required this.lastSets,
+    required this.flash,
   });
 
-  final String number;
-  final LiveSet liveSet;
-  final PerformedSet? previous;
-  final bool completed;
-  final VoidCallback? onTap;
+  final List<LiveSet> sets;
+  final List<PerformedSet> lastSets;
+  final _Flash? flash;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final type = liveSet.set.setType;
 
-    final performed = PerformedSet(
-      position: liveSet.set.position,
-      type: type,
-      segments: [
-        for (final s in liveSet.segments)
-          SegmentData(weightKg: s.weightKg, reps: s.reps),
-      ],
-    );
-
-    // Concluída mostra o que foi feito; futura mostra a referência apagada.
-    final source = completed ? performed : previous;
-    final text = source == null || !source.hasData
-        ? (type.isMultiSegment ? type.label.toLowerCase() : 'sem referência')
-        : _describe(source, type);
-
-    return Opacity(
-      opacity: completed ? 1 : 0.45,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.sm,
-            vertical: Space.md,
-          ),
-          child: Row(
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(
+        Space.xxl,
+        Space.xl,
+        Space.xxl,
+        Space.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FlashLine(flash: flash),
+          Row(
             children: [
-              SizedBox(
-                width: 18,
-                child: Text(
-                  number,
-                  style: AppText.caption.copyWith(color: c.textGhost),
-                ),
-              ),
+              Icon(LucideIcons.circleCheck, size: 18, color: c.up),
               const SizedBox(width: Space.sm),
-              Icon(
-                completed ? LucideIcons.circleCheck : LucideIcons.circle,
-                size: 16,
-                color: completed ? c.up : c.textGhost,
+              Text(
+                'Exercício concluído',
+                style: AppText.headline.copyWith(color: c.textPrimary),
               ),
-              const SizedBox(width: Space.lg),
-              Expanded(
-                child: Text(
-                  text,
-                  style: AppText.callout.copyWith(
-                    color: completed ? c.textSecondary : c.textTertiary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (completed) _Delta(current: performed, previous: previous),
             ],
           ),
-        ),
+          const SizedBox(height: Space.md),
+          for (var i = 0; i < sets.length; i++)
+            Builder(
+              builder: (context) {
+                final live = sets[i];
+                final performed = PerformedSet(
+                  position: live.set.position,
+                  type: live.set.setType,
+                  segments: [
+                    for (final s in live.segments)
+                      SegmentData(weightKg: s.weightKg, reps: s.reps),
+                  ],
+                );
+                final comparison = compareSet(
+                  performed,
+                  _previousFor(lastSets, live.set.position),
+                );
+                final delta = _describeDelta(comparison);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.sm),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        child: Text(
+                          _workingNumber(sets, i),
+                          style: AppText.footnote.copyWith(
+                            color: c.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          _describe(performed),
+                          style: AppText.body.copyWith(color: c.textPrimary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (delta != null)
+                        Text(
+                          delta == 'igual' ? '=' : delta,
+                          style: AppText.footnote.copyWith(
+                            color: switch (comparison.verdict) {
+                              Verdict.evoluiu => c.up,
+                              Verdict.reduziu => c.down,
+                              _ => c.textSecondary,
+                            },
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }
 
-  String _describe(PerformedSet set, SetType type) {
+  String _describe(PerformedSet set) {
     final segments = set.filledSegments.toList();
-    return switch (type) {
+    if (segments.isEmpty) return '—';
+    return switch (set.type) {
       SetType.drop =>
         segments
             .map((s) => '${formatWeight(s.weightKg)}×${s.reps}')
@@ -796,57 +1303,95 @@ class _CompactRow extends StatelessWidget {
   }
 }
 
-/// O delta da série, ao lado do que foi feito. É o motivo do app existir.
-class _Delta extends StatelessWidget {
-  const _Delta({required this.current, required this.previous});
+/// A base do painel: o próximo exercício numa cápsula de vidro e a ação cheia
+/// embaixo, onde o polegar alcança.
+class _Footer extends StatelessWidget {
+  const _Footer({
+    required this.next,
+    required this.onNext,
+    required this.primary,
+  });
 
-  final PerformedSet current;
-  final PerformedSet? previous;
+  final LiveExercise? next;
+  final VoidCallback onNext;
+  final Widget primary;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final comparison = compareSet(current, previous);
+    final n = next;
 
-    if (!comparison.hasReference) {
-      return Text(
-        'novo',
-        style: AppText.caption.copyWith(color: c.textTertiary),
-      );
-    }
-
-    final tone = switch (comparison.verdict) {
-      Verdict.evoluiu => c.up,
-      Verdict.reduziu => c.down,
-      _ => c.flat,
-    };
-
-    final delta = comparison.deltaKg ?? 0;
-    final label = delta != 0
-        ? formatDelta(delta)
-        : (comparison.deltaReps == 0
-              ? '='
-              : '${comparison.deltaReps! > 0 ? '+' : ''}${comparison.deltaReps} rep');
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (comparison.verdict != Verdict.manteve)
-          Icon(
-            comparison.verdict == Verdict.evoluiu
-                ? LucideIcons.arrowUp
-                : LucideIcons.arrowDown,
-            size: 12,
-            color: tone,
-          ),
-        Text(
-          label,
-          style: AppText.caption.copyWith(
-            color: tone,
-            fontWeight: FontWeight.w500,
-          ),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          Space.page,
+          Space.xs,
+          Space.page,
+          Space.md,
         ),
-      ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (n != null) ...[
+              Semantics(
+                button: true,
+                label: 'A seguir: ${n.exercise.name}',
+                excludeSemantics: true,
+                child: PressScale(
+                  onTap: onNext,
+                  scale: 0.97,
+                  child: SizedBox(
+                    height: 46,
+                    child: GlassSurface.capsule(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          left: Space.sm,
+                          right: Space.lg,
+                        ),
+                        child: Row(
+                          children: [
+                            ExerciseAvatar(
+                              name: n.exercise.name,
+                              group: n.exercise.muscleGroup,
+                              size: 30,
+                            ),
+                            const SizedBox(width: Space.md),
+                            Text(
+                              'A seguir · ',
+                              style: AppText.subheadline.copyWith(
+                                color: c.textSecondary,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                n.exercise.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.subheadline.copyWith(
+                                  color: c.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              LucideIcons.chevronRight,
+                              size: 18,
+                              color: c.textTertiary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: Space.md),
+            ],
+            primary,
+          ],
+        ),
+      ),
     );
   }
 }

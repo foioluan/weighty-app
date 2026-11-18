@@ -139,6 +139,9 @@ class _AppScaffoldState extends State<AppScaffold> {
             )
           : null,
       title: w.title ?? w.largeTitle,
+      // Sem título grande, o subtítulo vai para baixo do título pequeno — é
+      // onde a sessão mostra o cronômetro.
+      subtitle: w.largeTitle == null ? w.subtitle : null,
       // Sem título grande, o pequeno é o título da tela e fica sempre visível.
       titleVisibility: w.slivers != null && w.title == null ? _offset : null,
       actions: w.actions,
@@ -301,12 +304,14 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.back,
     required this.title,
+    required this.subtitle,
     required this.titleVisibility,
     required this.actions,
   });
 
   final Widget? back;
   final String? title;
+  final String? subtitle;
 
   /// Quando presente, o título só aparece depois que a lista rolou o título
   /// grande para fora de vista.
@@ -319,11 +324,25 @@ class _TopBar extends StatelessWidget {
 
     Widget? label;
     if (title != null) {
-      label = Text(
-        title!,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AppText.headline.copyWith(color: c.textPrimary),
+      label = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.headline.copyWith(color: c.textPrimary),
+          ),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              maxLines: 1,
+              style: AppText.caption.copyWith(
+                color: c.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+        ],
       );
       final visibility = titleVisibility;
       if (visibility != null) {
@@ -341,32 +360,30 @@ class _TopBar extends StatelessWidget {
       }
     }
 
+    // NavigationToolbar centraliza o título quando cabe e o desloca quando
+    // os botões de um lado são mais largos — a sessão tem voltar à esquerda e
+    // lista + "Finalizar" à direita, e um título centrado com folga fixa
+    // passava por baixo deles.
     return SizedBox(
       height: _topBarHeight,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (label != null)
-            Padding(
-              // Folga lateral para o título nunca passar por baixo dos
-              // botões: dois círculos de 44 de cada lado.
-              padding: const EdgeInsets.symmetric(horizontal: 108),
-              child: label,
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-            child: Row(
-              children: [
-                ?back,
-                const Spacer(),
-                for (var i = 0; i < actions.length; i++) ...[
-                  if (i > 0) const SizedBox(width: Space.md),
-                  actions[i],
-                ],
-              ],
-            ),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+        child: NavigationToolbar(
+          leading: back,
+          middle: label,
+          trailing: actions.isEmpty
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: Space.md),
+                      actions[i],
+                    ],
+                  ],
+                ),
+          middleSpacing: Space.md,
+        ),
       ),
     );
   }

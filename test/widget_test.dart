@@ -140,12 +140,16 @@ void main() {
       await tester.pumpWidget(wrap(SessionPage(sessionId: current)));
       await settle(tester);
 
-      // A série de agora é o card em foco: referência no cabeçalho e os
-      // valores da semana passada como texto fantasma nos campos.
+      // A série de agora vem em destaque: a referência embaixo da carga e os
+      // valores da semana passada como texto fantasma.
       expect(find.textContaining('última vez 67,5 × 9'), findsOneWidget);
       expect(find.text('67,5'), findsOneWidget);
-      // A próxima série aparece como linha compacta com a referência dela.
-      expect(find.text('65 kg × 8'), findsOneWidget);
+      expect(find.text('Série 1 de 2'), findsOneWidget);
+
+      // Tocar na pílula da próxima série mostra a referência dela.
+      await tester.tap(find.bySemanticsLabel('Série 2'));
+      await settle(tester);
+      expect(find.textContaining('última vez 65 × 8'), findsOneWidget);
 
       await teardownTree(tester);
     });
@@ -190,9 +194,10 @@ void main() {
 
       expect(segment.weightKg, 67.5);
       expect(segment.reps, 9);
-      // Concluída, ela vira linha compacta com o que foi feito e o delta.
-      expect(find.text('67,5 kg × 9'), findsOneWidget);
-      expect(find.text('='), findsOneWidget);
+      // O resultado aparece na hora, e a próxima série assume o destaque.
+      expect(find.text('Série 1 concluída · igual'), findsOneWidget);
+      expect(find.bySemanticsLabel('Série 1, concluída'), findsOneWidget);
+      expect(find.text('Série 2 de 2'), findsOneWidget);
 
       await teardownTree(tester);
     });
@@ -211,8 +216,36 @@ void main() {
       await tester.tap(find.text('Concluir série'));
       await settle(tester);
 
-      expect(find.text('70 kg × 9'), findsOneWidget);
-      expect(find.text('+2,5'), findsOneWidget);
+      expect(find.text('Série 1 concluída · +2,5 kg'), findsOneWidget);
+
+      await teardownTree(tester);
+    });
+
+    testWidgets('desfazer reabre uma série concluída', (tester) async {
+      await seedFinishedSession([(67.5, 9), (65, 8)]);
+      final current = await SessionRepository(db).startFromRoutine(routineId);
+
+      await tester.pumpWidget(wrap(SessionPage(sessionId: current)));
+      await settle(tester);
+
+      await tester.tap(find.text('Concluir série'));
+      await settle(tester);
+
+      // Era um toque escondido na linha; agora é escolher a pílula e a ação
+      // da base vira "Desfazer conclusão".
+      await tester.tap(find.bySemanticsLabel('Série 1, concluída'));
+      await settle(tester);
+      await tester.tap(find.text('Desfazer conclusão'));
+      await settle(tester);
+
+      final links = await (db.select(
+        db.sessionExercises,
+      )..where((t) => t.sessionId.equals(current))).get();
+      final sets = await (db.select(
+        db.loggedSets,
+      )..where((t) => t.sessionExerciseId.equals(links.first.id))).get();
+      expect(sets.every((s) => !s.completed), isTrue);
+      expect(find.text('Série 1 de 2'), findsOneWidget);
 
       await teardownTree(tester);
     });

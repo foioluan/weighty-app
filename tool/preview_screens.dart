@@ -177,6 +177,17 @@ void main() {
       await _capture(tester, key, '08b_dialogo_$suffix');
       await tester.tap(find.text('Voltar'));
       await settleFrames();
+      await tester.tap(find.text('Concluir série'));
+      await settleFrames();
+      await _capture(tester, key, '08c_sessao_concluida_$suffix');
+      await tester.tap(find.bySemanticsLabel('Carga'));
+      await settleFrames();
+      await _capture(tester, key, '08d_teclado_$suffix');
+      await dismiss();
+      await tester.tap(find.bySemanticsLabel('Exercícios do treino'));
+      await settleFrames();
+      await _capture(tester, key, '08e_lista_$suffix');
+      await dismiss();
 
       router.go('/');
       await tester.pumpWidget(const SizedBox.shrink());
