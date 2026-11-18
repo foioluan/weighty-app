@@ -12,6 +12,7 @@ export 'components/feedback.dart';
 export 'components/fields.dart';
 export 'components/glass.dart';
 export 'components/layout.dart';
+export 'components/number_pad.dart';
 export 'haptics.dart';
 export 'components/motion.dart';
 export 'components/tab_bar.dart';
