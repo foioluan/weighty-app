@@ -129,20 +129,24 @@ class StatTile extends StatelessWidget {
       child: ColoredBox(
         color: c.surface,
         child: Padding(
-          padding: const EdgeInsets.all(Space.lg + 2),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.lg,
+            vertical: Space.lg + 2,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label.isEmpty
-                    ? label
-                    : label[0].toUpperCase() + label.substring(1),
-                style: AppText.footnote.copyWith(
-                  color: c.textSecondary,
-                  fontWeight: FontWeight.w500,
+              _Shrink(
+                Text(
+                  label.isEmpty
+                      ? label
+                      : label[0].toUpperCase() + label.substring(1),
+                  style: AppText.footnote.copyWith(
+                    color: c.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: Space.xs),
               // Encolhe em vez de cortar: "10.1…" escondia justamente o número,
@@ -177,13 +181,14 @@ class StatTile extends StatelessWidget {
               ),
               if (footnote != null) ...[
                 const SizedBox(height: Space.xs),
-                Text(
-                  footnote!,
-                  style: AppText.caption.copyWith(
-                    color: footnoteColor ?? c.textTertiary,
+                _Shrink(
+                  Text(
+                    footnote!,
+                    style: AppText.caption.copyWith(
+                      color: footnoteColor ?? c.textTertiary,
+                    ),
+                    maxLines: 1,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ],
@@ -192,6 +197,20 @@ class StatTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Texto de uma linha que encolhe em vez de cortar, nos cartões estreitos.
+class _Shrink extends StatelessWidget {
+  const _Shrink(this.child);
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: child,
+  );
 }
 
 /// Etiqueta de veredito. Sem preenchimento sólido: só o texto na cor, com uma

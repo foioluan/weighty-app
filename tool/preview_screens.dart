@@ -10,6 +10,7 @@ import 'dart:ui' as ui;
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -151,7 +152,21 @@ void main() {
       await _capture(tester, key, '05c_folha_$suffix');
       await dismiss();
       await shot('/sessao/$summaryId?de=Histórico', '06_resumo');
-      await shot('/exercicio/${ids.remada}?de=Exercícios', '07_progresso');
+      // O seed devolve o id do vínculo treino–exercício; a tela de progressão
+      // quer o do exercício.
+      final remada = await (db.select(
+        db.exercises,
+      )..where((t) => t.name.equals('Remada curvada barra'))).getSingle();
+      await shot('/exercicio/${remada.id}?de=Exercícios', '07_progresso');
+      // Dedo pousado no gráfico: régua, ponto realçado e balão.
+      final chart = tester.getRect(find.byType(LineChart));
+      final touch = await tester.startGesture(
+        chart.centerLeft + Offset(chart.width * 0.45, 0),
+      );
+      await settleFrames();
+      await _capture(tester, key, '07b_progresso_toque_$suffix');
+      await touch.up();
+      await settleFrames();
 
       // Por último: começar uma sessão deixa um treino em andamento, e isso
       // mudaria as telas anteriores.

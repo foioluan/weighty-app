@@ -129,9 +129,9 @@ class _ProgressBody extends ConsumerWidget {
         Container(
           height: 190,
           padding: const EdgeInsets.fromLTRB(
-            Space.md,
             Space.xl,
             Space.xl,
+            Space.sm,
             Space.md,
           ),
           decoration: AppShapes.surface(c.surface),
@@ -224,24 +224,39 @@ class _Chart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           horizontalInterval: (max - min) == 0 ? null : (max - min) / 2,
-          getDrawingHorizontalLine: (_) =>
-              FlLine(color: c.hairline, strokeWidth: 0.5),
+          // Linhas de grade tracejadas e fracas, só na horizontal — o gráfico
+          // do Saúde: a grade orienta o olho sem disputar com a linha.
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: c.hairlineStrong,
+            strokeWidth: 0.5,
+            dashArray: const [3, 4],
+          ),
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
-          rightTitles: const AxisTitles(),
-          leftTitles: AxisTitles(
+          leftTitles: const AxisTitles(),
+          // Valores à direita, como no Saúde: a leitura começa pela linha, e
+          // o número fica ao lado do ponto mais recente.
+          rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) => SideTitleWidget(
-                meta: meta,
-                child: Text(
-                  formatWeight(value),
-                  style: AppText.caption.copyWith(color: c.textTertiary),
-                ),
-              ),
+              reservedSize: 44,
+              // As bordas do intervalo (mínimo e máximo com respiro) não caem
+              // na grade e saíam como um "59" solto colado no "60".
+              getTitlesWidget: (value, meta) =>
+                  value == meta.min || value == meta.max
+                  ? const SizedBox.shrink()
+                  : SideTitleWidget(
+                      meta: meta,
+                      child: Text(
+                        formatWeight(value),
+                        style: AppText.caption.copyWith(
+                          color: c.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
             ),
           ),
           bottomTitles: AxisTitles(
@@ -264,7 +279,7 @@ class _Chart extends StatelessWidget {
                   space: 6,
                   child: Text(
                     formatShortDate(points[index].date),
-                    style: AppText.caption.copyWith(color: c.textTertiary),
+                    style: AppText.caption.copyWith(color: c.textSecondary),
                   ),
                 );
               },
@@ -272,15 +287,45 @@ class _Chart extends StatelessWidget {
           ),
         ),
         lineTouchData: LineTouchData(
+          // Ao tocar: régua vertical e o ponto realçado, com o valor num balão
+          // acima — em vez de só o balão solto.
+          getTouchedSpotIndicator: (bar, indexes) => [
+            for (final _ in indexes)
+              TouchedSpotIndicatorData(
+                FlLine(color: c.textTertiary, strokeWidth: 1),
+                FlDotData(
+                  getDotPainter: (_, _, _, _) => FlDotCirclePainter(
+                    radius: 5.5,
+                    color: c.accent,
+                    strokeWidth: 3,
+                    strokeColor: c.surface,
+                  ),
+                ),
+              ),
+          ],
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => c.surfaceRaised,
-            tooltipBorderRadius: BorderRadius.circular(Radii.sm),
+            getTooltipColor: (_) => c.surfaceInput,
+            tooltipBorderRadius: BorderRadius.circular(Radii.md),
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.sm,
+            ),
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
             getTooltipItems: (touched) => [
               for (final spot in touched)
                 LineTooltipItem(
-                  '${formatWeight(spot.y)} kg\n'
-                  '${formatShortDate(points[spot.x.round()].date)}',
-                  AppText.caption.copyWith(color: c.textPrimary),
+                  '${formatWeight(spot.y)} kg',
+                  AppText.headline.copyWith(
+                    color: c.textPrimary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '\n${formatShortDate(points[spot.x.round()].date)}',
+                      style: AppText.footnote.copyWith(color: c.textSecondary),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -288,15 +333,25 @@ class _Chart extends StatelessWidget {
         lineBarsData: [
           LineChartBarData(
             spots: spots,
-            isCurved: false,
-            barWidth: 1.8,
+            // Curva suave, sem passar dos pontos: o traço não pode sugerir
+            // uma carga que ninguém levantou.
+            isCurved: true,
+            curveSmoothness: 0.3,
+            preventCurveOverShooting: true,
+            barWidth: 2.5,
+            isStrokeCapRound: true,
+            isStrokeJoinRound: true,
             color: c.accent,
+            // Só o ponto mais recente é marcado, com anel na cor do cartão:
+            // é a sessão que a tela existe para comparar.
             dotData: FlDotData(
               show: true,
+              checkToShowDot: (spot, bar) => spot == bar.spots.last,
               getDotPainter: (spot, _, _, _) => FlDotCirclePainter(
-                radius: 3,
+                radius: 5,
                 color: c.accent,
-                strokeWidth: 0,
+                strokeWidth: 3,
+                strokeColor: c.surface,
               ),
             ),
             belowBarData: BarAreaData(
@@ -305,7 +360,7 @@ class _Chart extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  c.accent.withValues(alpha: 0.18),
+                  c.accent.withValues(alpha: c.isDark ? 0.34 : 0.24),
                   c.accent.withValues(alpha: 0.0),
                 ],
               ),
