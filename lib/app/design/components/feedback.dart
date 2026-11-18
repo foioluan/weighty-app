@@ -666,12 +666,17 @@ class AppMenuItem<T> {
     required this.value,
     this.icon,
     this.isDestructive = false,
+    this.selected = false,
   });
 
   final String label;
   final T value;
   final IconData? icon;
   final bool isDestructive;
+
+  /// A opção em vigor, num menu de escolha (o tipo da série): ganha um ✓ no
+  /// lugar do ícone.
+  final bool selected;
 }
 
 /// Menu suspenso de vidro, nascendo do botão que o abriu — o menu do `⋯` no
@@ -822,6 +827,7 @@ class _MenuRowState<T> extends State<_MenuRow<T>> {
     return Semantics(
       button: true,
       label: widget.item.label,
+      selected: widget.item.selected,
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -840,10 +846,18 @@ class _MenuRowState<T> extends State<_MenuRow<T>> {
                   widget.item.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppText.body.copyWith(color: tone),
+                  style: AppText.body.copyWith(
+                    color: tone,
+                    fontWeight: widget.item.selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
                 ),
               ),
-              if (widget.item.icon != null) ...[
+              if (widget.item.selected) ...[
+                const SizedBox(width: Space.md),
+                Icon(LucideIcons.check, size: 19, color: c.accent),
+              ] else if (widget.item.icon != null) ...[
                 const SizedBox(width: Space.md),
                 Icon(widget.item.icon, size: 19, color: tone),
               ],

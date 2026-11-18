@@ -147,7 +147,7 @@ void main() {
       await settleFrames();
       await _capture(tester, key, '05b_menu_$suffix');
       await dismiss();
-      await tester.tap(find.text('8-10').first);
+      await tester.tap(find.text('8–10').first);
       await settleFrames();
       await _capture(tester, key, '05c_folha_$suffix');
       await dismiss();

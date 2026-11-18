@@ -213,7 +213,11 @@ class _RoutineCard extends ConsumerWidget {
                         ? null
                         : () {
                             Haptics.tick();
-                            _startSession(context, ref, summary.routine.id);
+                            startRoutineSession(
+                              context,
+                              ref,
+                              summary.routine.id,
+                            );
                           },
                   ),
                 ],
@@ -235,7 +239,9 @@ Future<void> _createRoutine(BuildContext context, WidgetRef ref) async {
   if (context.mounted) context.push('/treino/$id/editar');
 }
 
-Future<void> _startSession(
+/// Começa uma sessão do treino, resolvendo antes uma que tenha ficado aberta.
+/// Usada pela home e pelo editor.
+Future<void> startRoutineSession(
   BuildContext context,
   WidgetRef ref,
   int routineId,
