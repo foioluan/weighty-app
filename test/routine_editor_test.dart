@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,6 +109,61 @@ void main() {
       expect(detail!.exercises.map((e) => e.exercise.id), [
         exercises[1].id,
         exercises[2].id,
+      ]);
+    });
+  });
+
+  group('posições das séries', () {
+    Future<List<PlannedSet>> setsOf(int linkId) =>
+        (db.select(db.plannedSets)
+              ..where((t) => t.routineExerciseId.equals(linkId))
+              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+            .get();
+
+    test('apagar a série do meio renumera as que ficam', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      await routines.removeSet(before[1].id);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1]);
+      // A ordem é a mesma: só os números fecharam o buraco.
+      expect(after.map((s) => s.id), [before[0].id, before[2].id]);
+    });
+
+    test('a série nova depois de apagar não repete posição', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      await routines.removeSet(before[1].id);
+      final added = await routines.addSet(linkId, targetReps: 10);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1, 2]);
+      expect(after.last.id, added);
+    });
+
+    test('acrescentar conserta posições que já estavam repetidas', () async {
+      final exercises = await catalog();
+      final (_, linkId) = await seedRoutine(exercises[0].id);
+      final before = await setsOf(linkId);
+
+      // O estado que a versão anterior deixava: buraco e posição repetida.
+      await (db.update(db.plannedSets)..where((t) => t.id.equals(before[1].id)))
+          .write(const PlannedSetsCompanion(position: Value(2)));
+
+      final added = await routines.addSet(linkId);
+
+      final after = await setsOf(linkId);
+      expect(after.map((s) => s.position), [0, 1, 2, 3]);
+      expect(after.map((s) => s.id), [
+        before[0].id,
+        before[1].id,
+        before[2].id,
+        added,
       ]);
     });
   });

@@ -270,23 +270,26 @@ class RoutineRepository {
     int? targetReps,
     int? targetRepsMax,
     int segmentCount = 1,
-  }) async {
-    final existing = await (_db.select(
-      _db.plannedSets,
-    )..where((t) => t.routineExerciseId.equals(routineExerciseId))).get();
+  }) {
+    return _db.transaction(() async {
+      // Compacta antes de anexar: um banco que já tenha buraco ou posição
+      // repetida (de antes desta correção) se conserta na próxima série
+      // criada, e a nova vai mesmo para o fim.
+      final count = await _compactSetPositions(routineExerciseId);
 
-    return _db
-        .into(_db.plannedSets)
-        .insert(
-          PlannedSetsCompanion.insert(
-            routineExerciseId: routineExerciseId,
-            position: existing.length,
-            setType: type,
-            targetReps: Value(targetReps),
-            targetRepsMax: Value(targetRepsMax),
-            segmentCount: Value(segmentCount),
-          ),
-        );
+      return _db
+          .into(_db.plannedSets)
+          .insert(
+            PlannedSetsCompanion.insert(
+              routineExerciseId: routineExerciseId,
+              position: count,
+              setType: type,
+              targetReps: Value(targetReps),
+              targetRepsMax: Value(targetRepsMax),
+              segmentCount: Value(segmentCount),
+            ),
+          );
+    });
   }
 
   Future<void> updateSet(
@@ -310,9 +313,47 @@ class RoutineRepository {
     );
   }
 
+  /// Apaga a série e renumera as que ficam (0, 1, 2…).
+  ///
+  /// Sem a renumeração, apagar a do meio de 0, 1, 2, 3 deixava 0, 2, 3, e a
+  /// próxima série criada pegava a posição pela contagem — 3, repetida. Como a
+  /// sessão copia a posição e a comparação com a última vez casa as séries por
+  /// ela, duas séries com a mesma posição disputavam a mesma referência.
+  ///
+  /// Renumerar faz a comparação ser por ordem — a 2ª série de hoje contra a 2ª
+  /// da última vez —, que é o que a tela mostra e o que a série extra da
+  /// sessão já fazia.
   Future<void> removeSet(int plannedSetId) {
-    return (_db.delete(
-      _db.plannedSets,
-    )..where((t) => t.id.equals(plannedSetId))).go();
+    return _db.transaction(() async {
+      final set = await (_db.select(
+        _db.plannedSets,
+      )..where((t) => t.id.equals(plannedSetId))).getSingleOrNull();
+      if (set == null) return;
+
+      await (_db.delete(
+        _db.plannedSets,
+      )..where((t) => t.id.equals(plannedSetId))).go();
+      await _compactSetPositions(set.routineExerciseId);
+    });
+  }
+
+  /// Reescreve as posições das séries do vínculo como 0, 1, 2…, na ordem
+  /// atual (o id desempata posições repetidas). Devolve quantas séries há.
+  Future<int> _compactSetPositions(int routineExerciseId) async {
+    final sets =
+        await (_db.select(_db.plannedSets)
+              ..where((t) => t.routineExerciseId.equals(routineExerciseId))
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.position),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
+            .get();
+
+    for (var i = 0; i < sets.length; i++) {
+      if (sets[i].position == i) continue;
+      await (_db.update(_db.plannedSets)..where((t) => t.id.equals(sets[i].id)))
+          .write(PlannedSetsCompanion(position: Value(i)));
+    }
+    return sets.length;
   }
 }
