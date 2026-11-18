@@ -69,7 +69,7 @@ class AppTabBar extends StatelessWidget {
                   // A pílula da aba ativa. Mola com um leve passar do ponto:
                   // ela "chega" na aba em vez de só parar.
                   AnimatedAlign(
-                    duration: const Duration(milliseconds: 380),
+                    duration: const Duration(milliseconds: 260),
                     curve: const Cubic(0.3, 1.35, 0.45, 1),
                     alignment: Alignment(
                       n == 1 ? 0 : -1 + 2 * currentIndex / (n - 1),

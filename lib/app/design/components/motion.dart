@@ -31,6 +31,9 @@ class AnimatedNumber extends StatelessWidget {
   }
 }
 
+/// Duração da entrada de cada item, sem contar o atraso.
+const _entry = Duration(milliseconds: 240);
+
 /// Entrada escalonada dos itens de uma lista: cada um sobe e aparece um pouco
 /// depois do anterior.
 ///
@@ -41,8 +44,8 @@ class StaggeredEntry extends StatelessWidget {
     super.key,
     required this.index,
     required this.child,
-    this.step = const Duration(milliseconds: 45),
-    this.maxDelay = const Duration(milliseconds: 270),
+    this.step = const Duration(milliseconds: 30),
+    this.maxDelay = const Duration(milliseconds: 120),
   });
 
   final int index;
@@ -55,11 +58,11 @@ class StaggeredEntry extends StatelessWidget {
     final delay = step * index;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: AppDurations.slow + (delay > maxDelay ? maxDelay : delay),
+      duration: _entry + (delay > maxDelay ? maxDelay : delay),
       curve: Interval(
         // A fração inicial parada é o que cria o escalonamento.
         (delay > maxDelay ? maxDelay : delay).inMilliseconds /
-            (AppDurations.slow.inMilliseconds +
+            (_entry.inMilliseconds +
                 (delay > maxDelay ? maxDelay : delay).inMilliseconds +
                 1),
         1,
@@ -77,13 +80,63 @@ class StaggeredEntry extends StatelessWidget {
   }
 }
 
+/// Duração da troca de tela. A rota Cupertino do Flutter usa 500 ms, que no
+/// Android deixava cada navegação com cara de lenta: o toque respondia na
+/// hora, mas a tela demorava a assentar. 300 ms mantém o deslize com
+/// paralaxe legível e some do caminho.
+const pageTransitionIn = Duration(milliseconds: 300);
+const pageTransitionOut = Duration(milliseconds: 250);
+
 /// Transição de tela do iOS: a nova entra deslizando da direita inteira, a de
 /// baixo recua um terço com paralaxe e escurece de leve — e o arrasto a partir
 /// da borda esquerda volta acompanhando o dedo.
 ///
-/// A versão anterior era um deslize de 6% com fade, sem gesto: bonito, mas
-/// voltar dependia do botão ou do gesto do sistema. O arrasto interativo é o
-/// que mais faz navegação parecer iPhone, e a rota Cupertino já o traz pronto.
-class SpringPage<T> extends CupertinoPage<T> {
-  const SpringPage({required super.child, super.key});
+/// Não é `CupertinoPage` direto só por causa da duração: a rota dela tem os
+/// 500 ms fixos. Esta usa o mesmo `CupertinoRouteTransitionMixin` — mesma
+/// curva, mesma paralaxe, mesmo gesto — com o tempo de [pageTransitionIn].
+class SpringPage<T> extends Page<T> {
+  const SpringPage({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Route<T> createRoute(BuildContext context) => _FastCupertinoRoute<T>(this);
+}
+
+class _FastCupertinoRoute<T> extends PageRoute<T>
+    with CupertinoRouteTransitionMixin<T> {
+  _FastCupertinoRoute(SpringPage<T> page) : super(settings: page);
+
+  SpringPage<T> get _page => settings as SpringPage<T>;
+
+  @override
+  Widget buildContent(BuildContext context) => _page.child;
+
+  @override
+  String? get title => null;
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      CupertinoPageTransition.delegatedTransition;
+
+  @override
+  Duration get transitionDuration => pageTransitionIn;
+
+  @override
+  Duration get reverseTransitionDuration => pageTransitionOut;
+}
+
+/// A folha do iOS (a de escolher exercício), com o mesmo encurtamento: a do
+/// Flutter também leva 500 ms para subir.
+class FastSheetRoute<T> extends CupertinoSheetRoute<T> {
+  FastSheetRoute({required super.scrollableBuilder});
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 320);
+
+  @override
+  Duration get reverseTransitionDuration => pageTransitionOut;
 }

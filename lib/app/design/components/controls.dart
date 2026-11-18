@@ -296,7 +296,7 @@ class AppSegmented<T> extends StatelessWidget {
         children: [
           if (index >= 0)
             AnimatedAlign(
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 240),
               curve: const Cubic(0.3, 1.25, 0.45, 1),
               alignment: Alignment(n == 1 ? 0 : -1 + 2 * index / (n - 1), 0),
               child: FractionallySizedBox(

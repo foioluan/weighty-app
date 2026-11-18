@@ -706,7 +706,7 @@ Future<T?> showAppMenu<T>(
     barrierColor: Colors.black.withValues(
       alpha: anchorContext.colors.isDark ? 0.3 : 0.12,
     ),
-    transitionDuration: const Duration(milliseconds: 340),
+    transitionDuration: const Duration(milliseconds: 240),
     pageBuilder: (context, _, _) =>
         _MenuLayout<T>(anchor: anchor, items: items),
     // A animação mora no próprio menu, que sabe de onde ele cresce.

@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart' show CupertinoSheetRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -324,7 +323,7 @@ Future<Exercise?> pickExercise(
   // volta, e a folha deixa o editor visível atrás, encolhido.
   return Navigator.push<Exercise>(
     context,
-    CupertinoSheetRoute<Exercise>(
+    FastSheetRoute<Exercise>(
       scrollableBuilder: (_, controller) => ExerciseCatalogPage(
         selecting: true,
         title: title,
@@ -515,7 +514,7 @@ class _ExerciseCard extends ConsumerWidget {
               ),
             ),
             AnimatedSize(
-              duration: AppDurations.slow,
+              duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topCenter,
               child: !expanded
