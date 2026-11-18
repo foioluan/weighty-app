@@ -72,9 +72,9 @@ abstract final class Heights {
 
 /// Prefixado porque `Durations` já existe no material.dart do Flutter.
 abstract final class AppDurations {
-  static const fast = Duration(milliseconds: 120);
-  static const base = Duration(milliseconds: 200);
-  static const slow = Duration(milliseconds: 320);
+  static const fast = Duration(milliseconds: 100);
+  static const base = Duration(milliseconds: 150);
+  static const slow = Duration(milliseconds: 220);
 }
 
 /// Paleta do app, exposta como ThemeExtension para os componentes lerem do

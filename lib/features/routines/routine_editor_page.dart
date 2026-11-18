@@ -514,7 +514,7 @@ class _ExerciseCard extends ConsumerWidget {
               ),
             ),
             AnimatedSize(
-              duration: const Duration(milliseconds: 240),
+              duration: const Duration(milliseconds: 160),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topCenter,
               child: !expanded

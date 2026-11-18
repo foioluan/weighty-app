@@ -32,7 +32,7 @@ class AnimatedNumber extends StatelessWidget {
 }
 
 /// Duração da entrada de cada item, sem contar o atraso.
-const _entry = Duration(milliseconds: 240);
+const _entry = Duration(milliseconds: 160);
 
 /// Entrada escalonada dos itens de uma lista: cada um sobe e aparece um pouco
 /// depois do anterior.
@@ -44,8 +44,8 @@ class StaggeredEntry extends StatelessWidget {
     super.key,
     required this.index,
     required this.child,
-    this.step = const Duration(milliseconds: 30),
-    this.maxDelay = const Duration(milliseconds: 120),
+    this.step = const Duration(milliseconds: 15),
+    this.maxDelay = const Duration(milliseconds: 60),
   });
 
   final int index;
@@ -80,12 +80,12 @@ class StaggeredEntry extends StatelessWidget {
   }
 }
 
-/// Duração da troca de tela. A rota Cupertino do Flutter usa 500 ms, que no
-/// Android deixava cada navegação com cara de lenta: o toque respondia na
-/// hora, mas a tela demorava a assentar. 300 ms mantém o deslize com
-/// paralaxe legível e some do caminho.
-const pageTransitionIn = Duration(milliseconds: 300);
-const pageTransitionOut = Duration(milliseconds: 250);
+/// Duração da troca de tela: quase instantânea. A rota Cupertino do Flutter usa
+/// 500 ms, e mesmo 300 ms ainda deixavam cada navegação com cara de espera no
+/// Android. Em 150 ms o deslize ainda dá a direção (entrou, voltou), mas a
+/// tela já está lá quando o olho chega.
+const pageTransitionIn = Duration(milliseconds: 150);
+const pageTransitionOut = Duration(milliseconds: 120);
 
 /// Transição de tela do iOS: a nova entra deslizando da direita inteira, a de
 /// baixo recua um terço com paralaxe e escurece de leve — e o arrasto a partir
@@ -135,7 +135,7 @@ class FastSheetRoute<T> extends CupertinoSheetRoute<T> {
   FastSheetRoute({required super.scrollableBuilder});
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 320);
+  Duration get transitionDuration => const Duration(milliseconds: 180);
 
   @override
   Duration get reverseTransitionDuration => pageTransitionOut;
