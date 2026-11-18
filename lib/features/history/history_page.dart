@@ -57,7 +57,7 @@ class HistoryPage extends ConsumerWidget {
                 for (final entry in byMonth.entries) ...[
                   SectionLabel('${entry.key} · ${entry.value.length}'),
                   InsetGroup(
-                    separatorIndent: 0,
+                    separatorIndent: AppRow.textInset(40),
                     children: [
                       for (final session in entry.value)
                         _SessionRow(session: session),
@@ -118,12 +118,12 @@ class _SessionRow extends ConsumerWidget {
         showChevron: true,
         onTap: () => context.push('/sessao/${session.id}?de=Histórico'),
         leading: Container(
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
+          decoration: ShapeDecoration(
             color: c.surfaceInput,
-            borderRadius: BorderRadius.circular(11),
+            shape: AppShapes.superellipse(Radii.md),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -134,9 +134,10 @@ class _SessionRow extends ConsumerWidget {
               ),
               Text(
                 DateFormat('MMM', 'pt_BR').format(finished).toLowerCase(),
-                style: AppText.caption.copyWith(
-                  color: c.textTertiary,
-                  fontSize: 9,
+                style: AppText.caption2.copyWith(
+                  color: c.textSecondary,
+                  fontSize: 10,
+                  height: 1.1,
                 ),
               ),
             ],

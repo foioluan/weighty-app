@@ -134,11 +134,7 @@ class _ProgressBody extends ConsumerWidget {
             Space.xl,
             Space.md,
           ),
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(Radii.lg),
-            border: Border.all(color: c.hairline, width: 0.5),
-          ),
+          decoration: AppShapes.surface(c.surface),
           child: _Chart(points: points, kind: kind),
         ),
         const SectionLabel('Sessões'),

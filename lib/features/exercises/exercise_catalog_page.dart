@@ -150,7 +150,7 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
                 )
               else
                 InsetGroup(
-                  separatorIndent: 0,
+                  separatorIndent: AppRow.textInset(),
                   children: [
                     for (final exercise in items)
                       _ExerciseRow(

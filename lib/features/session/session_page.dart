@@ -523,17 +523,18 @@ class _FocusCard extends ConsumerWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: Space.lg),
-      padding: const EdgeInsets.all(Space.xl),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: c.isDark
-              ? [const Color(0xFF1C2026), const Color(0xFF14171B)]
-              : [Colors.white, const Color(0xFFFBF7EF)],
+      padding: const EdgeInsets.all(Space.xxl),
+      // A série de agora é o único cartão em foco da tela: superfície um tom
+      // acima e contorno bronze em vez do degradê, que contra o preto puro
+      // virava uma mancha.
+      decoration: ShapeDecoration(
+        color: c.surface,
+        shape: AppShapes.superellipse(
+          Radii.lg,
+          side: BorderSide(
+            color: c.accent.withValues(alpha: c.isDark ? 0.45 : 0.4),
+          ),
         ),
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: c.accent.withValues(alpha: 0.35), width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,11 +689,11 @@ class _StepSquare extends StatelessWidget {
         child: Container(
           width: 46,
           height: 46,
-          decoration: BoxDecoration(
+          decoration: ShapeDecoration(
             color: c.surfaceInput,
-            borderRadius: BorderRadius.circular(Radii.md),
+            shape: AppShapes.superellipse(Radii.md + 2),
           ),
-          child: Center(child: Icon(icon, size: 19, color: c.textSecondary)),
+          child: Center(child: Icon(icon, size: 20, color: c.textPrimary)),
         ),
       ),
     );

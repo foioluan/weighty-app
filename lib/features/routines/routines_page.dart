@@ -123,99 +123,104 @@ class _RoutineCard extends ConsumerWidget {
     final last = summary.lastPerformedAt;
     final empty = summary.exerciseCount == 0;
 
-    return Container(
-      decoration: BoxDecoration(
+    return ClipRSuperellipse(
+      borderRadius: BorderRadius.circular(Radii.lg),
+      child: ColoredBox(
         color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: c.hairline, width: 0.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          _Pressable(
-            onTap: () => context.push('/treino/${summary.routine.id}/editar'),
-            child: Padding(
+        child: Column(
+          children: [
+            _Pressable(
+              onTap: () => context.push('/treino/${summary.routine.id}/editar'),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Space.xxl,
+                  Space.xl + 2,
+                  Space.xl,
+                  Space.xs,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            summary.routine.name,
+                            style: AppText.title3.copyWith(
+                              color: c.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            empty
+                                ? 'Sem exercícios'
+                                : '${summary.exerciseCount} '
+                                      '${summary.exerciseCount == 1 ? 'exercício' : 'exercícios'}'
+                                      ' · ${summary.setCount} '
+                                      '${summary.setCount == 1 ? 'série' : 'séries'}',
+                            style: AppText.subheadline.copyWith(
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (summary.muscleGroups.isNotEmpty)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // No máximo quatro pontos: mais que isso deixa de ser
+                          // leitura rápida e vira ruído.
+                          for (final g in summary.muscleGroups.take(4))
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: MuscleDot(g, size: 8),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // Sem linha divisória: no cartão sem borda, o respiro já separa o
+            // nome do rodapé, e a linha só cortava o cartão ao meio.
+            Padding(
               padding: const EdgeInsets.fromLTRB(
-                Space.xl,
-                Space.xl,
-                Space.lg,
-                Space.lg,
+                Space.xxl,
+                Space.sm,
+                Space.md + 2,
+                Space.md + 2,
               ),
               child: Row(
                 children: [
+                  Icon(LucideIcons.clock3, size: 14, color: c.textSecondary),
+                  const SizedBox(width: Space.sm),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          summary.routine.name,
-                          style: AppText.title3.copyWith(color: c.textPrimary),
-                        ),
-                        const SizedBox(height: Space.xs),
-                        Text(
-                          empty
-                              ? 'sem exercícios'
-                              : '${summary.exerciseCount} '
-                                    '${summary.exerciseCount == 1 ? 'exercício' : 'exercícios'}'
-                                    ' · ${summary.setCount} '
-                                    '${summary.setCount == 1 ? 'série' : 'séries'}',
-                          style: AppText.footnote.copyWith(
-                            color: c.textTertiary,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      last == null ? 'nunca feito' : formatRelativeDate(last),
+                      style: AppText.footnote.copyWith(color: c.textSecondary),
                     ),
                   ),
-                  if (summary.muscleGroups.isNotEmpty)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // No máximo quatro pontos: mais que isso deixa de ser
-                        // leitura rápida e vira ruído.
-                        for (final g in summary.muscleGroups.take(4))
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: MuscleDot(g, size: 8),
-                          ),
-                      ],
-                    ),
+                  // Tingido e não cheio: com dois ou três treinos na tela,
+                  // três botões bronze cheios disputavam a atenção. A ação
+                  // cheia do app continua sendo "Concluir série".
+                  AppButton(
+                    label: 'Iniciar',
+                    icon: LucideIcons.play,
+                    style: AppButtonStyle.tinted,
+                    compact: true,
+                    onPressed: empty
+                        ? null
+                        : () {
+                            Haptics.tick();
+                            _startSession(context, ref, summary.routine.id);
+                          },
+                  ),
                 ],
               ),
             ),
-          ),
-          Container(height: 0.5, color: c.hairline),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Space.lg,
-              Space.md,
-              Space.lg,
-              Space.md,
-            ),
-            child: Row(
-              children: [
-                Icon(LucideIcons.clock3, size: 13, color: c.textTertiary),
-                const SizedBox(width: Space.sm),
-                Expanded(
-                  child: Text(
-                    last == null ? 'nunca feito' : formatRelativeDate(last),
-                    style: AppText.footnote.copyWith(color: c.textTertiary),
-                  ),
-                ),
-                AppButton(
-                  label: 'Iniciar',
-                  icon: LucideIcons.play,
-                  compact: true,
-                  onPressed: empty
-                      ? null
-                      : () {
-                          Haptics.tick();
-                          _startSession(context, ref, summary.routine.id);
-                        },
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -292,7 +297,7 @@ class _PressableState extends State<_Pressable> {
       onTapCancel: () => setState(() => _down = false),
       child: AnimatedContainer(
         duration: AppDurations.fast,
-        color: _down ? context.colors.hairline : Colors.transparent,
+        color: _down ? context.colors.fill : Colors.transparent,
         child: widget.child,
       ),
     );
@@ -309,59 +314,61 @@ class _ResumeBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.xl, 0, Space.xl, Space.lg),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onResume,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.lg,
-          ),
-          decoration: BoxDecoration(
-            color: c.accentSubtle,
-            borderRadius: BorderRadius.circular(Radii.md),
-            border: Border.all(
-              color: c.accent.withValues(alpha: 0.35),
-              width: 0.5,
+      padding: const EdgeInsets.fromLTRB(Space.page, 0, Space.page, Space.lg),
+      child: Semantics(
+        button: true,
+        label: 'Retomar $name',
+        child: PressScale(
+          onTap: onResume,
+          scale: 0.98,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(
+              Space.xl,
+              Space.lg,
+              Space.lg,
+              Space.lg,
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: c.accent,
-                  shape: BoxShape.circle,
+            decoration: AppShapes.surface(c.accentSubtle, radius: Radii.lg - 6),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: c.accent,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: Space.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'EM ANDAMENTO',
-                      style: AppText.overline.copyWith(color: c.accent),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      name,
-                      style: AppText.bodyStrong.copyWith(color: c.textPrimary),
-                    ),
-                  ],
+                const SizedBox(width: Space.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Em andamento',
+                        style: AppText.footnote.copyWith(
+                          color: c.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        name,
+                        style: AppText.headline.copyWith(color: c.textPrimary),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                'Retomar',
-                style: AppText.callout.copyWith(
-                  color: c.accent,
-                  fontWeight: FontWeight.w500,
+                Text(
+                  'Retomar',
+                  style: AppText.subheadline.copyWith(
+                    color: c.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Icon(LucideIcons.chevronRight, size: 16, color: c.accent),
-            ],
+                Icon(LucideIcons.chevronRight, size: 18, color: c.accent),
+              ],
+            ),
           ),
         ),
       ),

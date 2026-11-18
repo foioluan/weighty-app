@@ -485,7 +485,12 @@ class AppSliverFill extends StatelessWidget {
   }
 }
 
-/// Rótulo de seção em maiúsculas, no estilo das listas agrupadas do iOS.
+/// Título de seção, em caixa normal e negrito — como "Treinos" e "Esta
+/// semana" no Fitness e no Saúde.
+///
+/// Era a maiúscula pequena com tracking das listas agrupadas antigas do iOS.
+/// No iOS atual a seção tem título de verdade, e a maiúscula pequena ficou só
+/// onde rotula dados (cabeçalho de coluna).
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key, this.trailing});
 
@@ -495,19 +500,26 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    // "novembro de 2026" vem do DateFormat em minúscula; título de seção
+    // começa em maiúscula.
+    final label = text.isEmpty
+        ? text
+        : text[0].toUpperCase() + text.substring(1);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         Space.xs,
-        Space.xxl,
+        Space.xxxl,
         Space.xs,
         Space.md,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Text(
-              text.toUpperCase(),
-              style: AppText.overline.copyWith(color: c.textTertiary),
+              label,
+              style: AppText.title2.copyWith(color: c.textPrimary),
             ),
           ),
           ?trailing,
@@ -517,45 +529,47 @@ class SectionLabel extends StatelessWidget {
   }
 }
 
-/// Cartão de bloco único: mesma superfície e mesmo hairline do [InsetGroup],
-/// sem as linhas divisórias.
+/// Cartão de bloco único: a mesma superfície do [InsetGroup], sem as linhas
+/// divisórias.
 ///
-/// Existe porque a decoração vinha sendo copiada em cada tela que precisava de
-/// um cartão que não fosse lista. Copiar seis linhas de `BoxDecoration` é como
-/// uma superfície começa a divergir do resto.
+/// Sem borda: contra o fundo preto (ou o cinza #F2F2F7 no claro) o cartão já
+/// se separa pela cor, e a linha fina em volta era o que o deixava com cara de
+/// Card do Material. O canto é contínuo (superelipse).
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
     required this.child,
     this.padding = EdgeInsets.zero,
     this.onTap,
+    this.color,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final VoidCallback? onTap;
 
+  /// Troca a superfície — o cartão de destaque da sessão usa um tom acima.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final content = Padding(padding: padding, child: child);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: c.hairline, width: 0.5),
+    final card = ClipRSuperellipse(
+      borderRadius: BorderRadius.circular(Radii.lg),
+      child: ColoredBox(
+        color: color ?? c.surface,
+        child: Padding(padding: padding, child: child),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? content
-          : _Pressable(onTap: onTap!, child: content),
     );
+
+    if (onTap == null) return card;
+    // Cartão inteiro tocável encolhe de leve, como os cartões do Fitness.
+    return PressScale(onTap: onTap, scale: 0.98, child: card);
   }
 }
 
-/// Agrupamento de lista: um cartão com hairlines entre as linhas. É a estrutura
-/// que dá o ar de app de sistema em vez de pilha de Cards do Material.
+/// Agrupamento de lista: um cartão com linhas divisórias entre as linhas. É a
+/// estrutura que dá o ar de app de sistema em vez de pilha de Cards.
 class InsetGroup extends StatelessWidget {
   const InsetGroup({
     super.key,
@@ -565,6 +579,10 @@ class InsetGroup extends StatelessWidget {
   });
 
   final List<Widget> children;
+
+  /// Recuo da linha divisória à esquerda. No iOS a linha começa onde começa o
+  /// texto, não na borda do cartão: com selo à esquerda, use
+  /// [AppRow.textInset].
   final double separatorIndent;
   final EdgeInsets padding;
 
@@ -585,18 +603,18 @@ class InsetGroup extends StatelessWidget {
       rows.add(children[i]);
     }
 
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
+    return ClipRSuperellipse(
+      borderRadius: BorderRadius.circular(Radii.lg),
+      child: ColoredBox(
         color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: c.hairline, width: 0.5),
+        child: Padding(
+          padding: padding,
+          // mainAxisSize.min: dentro de uma lista a altura já é livre e isso
+          // não muda nada, mas dentro de uma folha — onde a altura é limitada —
+          // um Column padrão estica e a folha ocupa a tela inteira.
+          child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+        ),
       ),
-      clipBehavior: Clip.antiAlias,
-      // mainAxisSize.min: dentro de uma lista a altura já é livre e isso não
-      // muda nada, mas dentro de uma folha — onde a altura é limitada — um
-      // Column padrão estica e a folha ocupa a tela inteira.
-      child: Column(mainAxisSize: MainAxisSize.min, children: rows),
     );
   }
 }
@@ -625,6 +643,11 @@ class AppRow extends StatelessWidget {
   final Color? titleColor;
   final double minHeight;
 
+  /// Recuo do texto de uma linha com selo de [leadingSize] px — o ponto onde a
+  /// linha divisória do [InsetGroup] deve começar.
+  static double textInset([double leadingSize = 36]) =>
+      Space.xl + leadingSize + Space.lg;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -652,7 +675,7 @@ class AppRow extends StatelessWidget {
                   const SizedBox(height: 1),
                   Text(
                     subtitle!,
-                    style: AppText.footnote.copyWith(color: c.textTertiary),
+                    style: AppText.subheadline.copyWith(color: c.textSecondary),
                   ),
                 ],
               ],
@@ -661,7 +684,7 @@ class AppRow extends StatelessWidget {
           if (trailing != null) ...[const SizedBox(width: Space.md), trailing!],
           if (showChevron) ...[
             const SizedBox(width: Space.xs),
-            Icon(LucideIcons.chevronRight, size: 18, color: c.textGhost),
+            Icon(LucideIcons.chevronRight, size: 18, color: c.textTertiary),
           ],
         ],
       ),
@@ -709,7 +732,7 @@ class _PressableState extends State<_Pressable> {
       onTapCancel: () => setState(() => _down = false),
       child: AnimatedContainer(
         duration: AppDurations.fast,
-        color: _down ? context.colors.hairline : Colors.transparent,
+        color: _down ? context.colors.fill : Colors.transparent,
         child: widget.child,
       ),
     );
@@ -739,20 +762,20 @@ class EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 30, color: c.textGhost),
+              Icon(icon, size: 40, color: c.textTertiary),
               const SizedBox(height: Space.xl),
             ],
             Text(
               title,
               textAlign: TextAlign.center,
-              style: AppText.title2.copyWith(color: c.textPrimary),
+              style: AppText.title3.copyWith(color: c.textPrimary),
             ),
             const SizedBox(height: Space.sm),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: AppText.callout.copyWith(
-                color: c.textTertiary,
+              style: AppText.subheadline.copyWith(
+                color: c.textSecondary,
                 height: 1.45,
               ),
             ),

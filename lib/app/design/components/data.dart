@@ -39,22 +39,25 @@ class ExerciseAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = context.colors.forMuscleGroup(group);
+    final c = context.colors;
+    final tone = c.forMuscleGroup(group);
 
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: tone.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(size * 0.3),
-        border: Border.all(color: tone.withValues(alpha: 0.3), width: 0.5),
+      // Sem contorno, como os ícones de Ajustes do iOS: o tom de fundo já
+      // basta, e a linha em volta só engrossava o desenho.
+      decoration: ShapeDecoration(
+        color: tone.withValues(alpha: c.isDark ? 0.2 : 0.14),
+        shape: AppShapes.superellipse(size * 0.28),
       ),
       child: Text(
         initialsOf(name),
         style: AppText.caption.copyWith(
           color: tone,
-          fontWeight: FontWeight.w600,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
         ),
       ),
@@ -121,57 +124,71 @@ class StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
 
-    return Container(
-      padding: const EdgeInsets.all(Space.lg),
-      decoration: BoxDecoration(
+    return ClipRSuperellipse(
+      borderRadius: BorderRadius.circular(Radii.lg - 6),
+      child: ColoredBox(
         color: c.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: c.hairline, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: AppText.overline.copyWith(color: c.textTertiary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: Space.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+        child: Padding(
+          padding: const EdgeInsets.all(Space.lg + 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                child: Text(
-                  value,
-                  style: AppText.numberMedium.copyWith(color: c.textPrimary),
+              Text(
+                label.isEmpty
+                    ? label
+                    : label[0].toUpperCase() + label.substring(1),
+                style: AppText.footnote.copyWith(
+                  color: c.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: Space.xs),
+              // Encolhe em vez de cortar: "10.1…" escondia justamente o número,
+              // que é a única coisa que o cartão existe para mostrar.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      value,
+                      style: AppText.numberMedium.copyWith(
+                        color: c.textPrimary,
+                      ),
+                      maxLines: 1,
+                    ),
+                    if (unit != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Text(
+                          unit!,
+                          style: AppText.footnote.copyWith(
+                            color: c.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (footnote != null) ...[
+                const SizedBox(height: Space.xs),
+                Text(
+                  footnote!,
+                  style: AppText.caption.copyWith(
+                    color: footnoteColor ?? c.textTertiary,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (unit != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 2),
-                  child: Text(
-                    unit!,
-                    style: AppText.caption.copyWith(color: c.textTertiary),
-                  ),
-                ),
+              ],
             ],
           ),
-          if (footnote != null) ...[
-            const SizedBox(height: Space.xs),
-            Text(
-              footnote!,
-              style: AppText.caption.copyWith(
-                color: footnoteColor ?? c.textTertiary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -323,7 +340,11 @@ class SetChip extends StatelessWidget {
     final (background, foreground, border) = switch (type) {
       // O aquecimento não conta para nenhum indicador, então também não pesa
       // na fileira: só o contorno.
-      SetType.aquecimento => (Colors.transparent, c.textTertiary, c.hairline),
+      SetType.aquecimento => (
+        Colors.transparent,
+        c.textSecondary,
+        c.hairlineStrong,
+      ),
       SetType.drop || SetType.cluster => (c.accentSubtle, c.accent, null),
       SetType.normal => (c.surfaceInput, c.textPrimary, null),
     };
@@ -335,14 +356,15 @@ class SetChip extends StatelessWidget {
         height: Heights.controlCompact,
         constraints: const BoxConstraints(minWidth: Heights.controlCompact),
         padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-        decoration: BoxDecoration(
-          color: _isAdd ? Colors.transparent : background,
-          borderRadius: BorderRadius.circular(Radii.sm),
-          border: _isAdd
-              ? Border.all(color: c.hairlineStrong, width: 0.5)
-              : border == null
-              ? null
-              : Border.all(color: border, width: 0.5),
+        decoration: ShapeDecoration(
+          // O "+" é tingido de bronze: é uma ação, não um dado da fileira.
+          color: _isAdd ? c.accentSubtle : background,
+          shape: AppShapes.superellipse(
+            Radii.sm,
+            side: border == null || _isAdd
+                ? BorderSide.none
+                : BorderSide(color: border, width: 1),
+          ),
         ),
         // widthFactor: um Center sem ele cresce até a largura máxima permitida,
         // e dentro de um Wrap isso faz cada chip ocupar a linha inteira.
