@@ -25,6 +25,59 @@ const shareCardPixelRatio = shareCardPixelWidth / 400;
 const _maxRecords = 3;
 const _maxGroups = 5;
 
+/// Tipografia própria do card, congelada na escala compacta de antes da
+/// mudança para a escala do iOS.
+///
+/// O card tem tamanho fixo e `test/share_card_test.dart` falha se o conteúdo
+/// passar de 400 × 500. A escala do app cresceu (corpo 15 → 17, título 28 →
+/// 34) para a tela, onde há rolagem; aqui não há, e acompanhar o app faria a
+/// imagem estourar em silêncio na build release.
+abstract final class _CardText {
+  static const _f = AppText.family;
+  static const _tabular = [FontFeature.tabularFigures()];
+
+  static const largeTitle = TextStyle(
+    fontFamily: _f,
+    fontSize: 28,
+    height: 1.15,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.7,
+  );
+  static const callout = TextStyle(fontFamily: _f, fontSize: 13, height: 1.35);
+  static const footnote = TextStyle(fontFamily: _f, fontSize: 12, height: 1.3);
+  static const caption = TextStyle(fontFamily: _f, fontSize: 11, height: 1.25);
+  static const overline = TextStyle(
+    fontFamily: _f,
+    fontSize: 10,
+    height: 1.2,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.9,
+  );
+  static const numberLarge = TextStyle(
+    fontFamily: _f,
+    fontSize: 27,
+    height: 1.05,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.8,
+    fontFeatures: _tabular,
+  );
+  static const numberMedium = TextStyle(
+    fontFamily: _f,
+    fontSize: 19,
+    height: 1.1,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.4,
+    fontFeatures: _tabular,
+  );
+  static const numberSmall = TextStyle(
+    fontFamily: _f,
+    fontSize: 13,
+    height: 1.2,
+    fontWeight: FontWeight.w500,
+    fontFeatures: _tabular,
+  );
+}
+
 /// A imagem do treino. Não é uma tela: é um desenho de tamanho fixo que a tela
 /// de imagem mostra reduzido e o botão de salvar rasteriza em 1080 × 1350.
 ///
@@ -94,13 +147,15 @@ class SessionShareCard extends StatelessWidget {
                       summary.session.routineName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppText.largeTitle.copyWith(color: c.textPrimary),
+                      style: _CardText.largeTitle.copyWith(
+                        color: c.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: Space.xs),
                     Text(
                       '${_plural(summary.exercises.length, 'exercício', 'exercícios')}'
                       ' · ${_plural(summary.totalSets, 'série', 'séries')}',
-                      style: AppText.footnote.copyWith(color: c.textTertiary),
+                      style: _CardText.footnote.copyWith(color: c.textTertiary),
                     ),
                     const SizedBox(height: Space.xxl),
                     // Dois Spacers dividem a folga em partes iguais acima e
@@ -149,14 +204,14 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         WeightyLockup(
-          style: AppText.callout,
+          style: _CardText.callout,
           color: c.textSecondary,
           markColor: c.accent,
         ),
         const Spacer(),
         Text(
           duration == null ? date : '$date · ${duration!.inMinutes} min',
-          style: AppText.caption.copyWith(color: c.textTertiary),
+          style: _CardText.caption.copyWith(color: c.textTertiary),
         ),
       ],
     );
@@ -200,14 +255,14 @@ class _VolumeRing extends StatelessWidget {
               FittedBox(
                 child: Text(
                   formatVolume(total),
-                  style: AppText.numberLarge.copyWith(color: c.textPrimary),
+                  style: _CardText.numberLarge.copyWith(color: c.textPrimary),
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 'KG DE VOLUME',
                 textAlign: TextAlign.center,
-                style: AppText.overline.copyWith(
+                style: _CardText.overline.copyWith(
                   color: c.textTertiary,
                   fontSize: 8.5,
                 ),
@@ -239,14 +294,14 @@ class _VolumeRing extends StatelessWidget {
                           slice.group.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppText.footnote.copyWith(
+                          style: _CardText.footnote.copyWith(
                             color: c.textSecondary,
                           ),
                         ),
                       ),
                       Text(
                         _percent(slice.volumeKg, total),
-                        style: AppText.numberSmall.copyWith(
+                        style: _CardText.numberSmall.copyWith(
                           color: c.textPrimary,
                         ),
                       ),
@@ -263,7 +318,7 @@ class _VolumeRing extends StatelessWidget {
                       Expanded(
                         child: Text(
                           '+ ${hidden.length} grupos',
-                          style: AppText.footnote.copyWith(
+                          style: _CardText.footnote.copyWith(
                             color: c.textTertiary,
                           ),
                         ),
@@ -273,7 +328,7 @@ class _VolumeRing extends StatelessWidget {
                           hidden.fold(0, (sum, s) => sum + s.volumeKg),
                           total,
                         ),
-                        style: AppText.numberSmall.copyWith(
+                        style: _CardText.numberSmall.copyWith(
                           color: c.textTertiary,
                         ),
                       ),
@@ -309,7 +364,7 @@ class _Records extends StatelessWidget {
           children: [
             Text(
               'RECORDES DE CARGA',
-              style: AppText.overline.copyWith(color: Brand.bronze),
+              style: _CardText.overline.copyWith(color: Brand.bronze),
             ),
             const SizedBox(width: Space.md),
             Expanded(child: Container(height: 0.5, color: c.hairline)),
@@ -320,7 +375,7 @@ class _Records extends StatelessWidget {
               const SizedBox(width: Space.md),
               Text(
                 '+ ${_plural(hidden, 'outro', 'outros')}',
-                style: AppText.overline.copyWith(color: c.textTertiary),
+                style: _CardText.overline.copyWith(color: c.textTertiary),
               ),
             ],
           ],
@@ -338,14 +393,14 @@ class _Records extends StatelessWidget {
                     record.exercise.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppText.footnote.copyWith(color: c.textPrimary),
+                    style: _CardText.footnote.copyWith(color: c.textPrimary),
                   ),
                 ),
                 const SizedBox(width: Space.md),
                 Text(
                   '${formatWeight(record.previousBestKg)} → '
                   '${formatWeight(record.loadKg)} kg',
-                  style: AppText.numberSmall.copyWith(color: c.up),
+                  style: _CardText.numberSmall.copyWith(color: c.up),
                 ),
               ],
             ),
@@ -429,7 +484,7 @@ class _Cell extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: c.textPrimary.withValues(alpha: 0.045),
-        borderRadius: BorderRadius.circular(Radii.md),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(color: c.hairline, width: 0.5),
       ),
       child: Column(
@@ -439,7 +494,7 @@ class _Cell extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppText.overline.copyWith(
+            style: _CardText.overline.copyWith(
               color: c.textTertiary,
               fontSize: 8.5,
             ),
@@ -450,7 +505,7 @@ class _Cell extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: AppText.numberMedium.copyWith(
+              style: _CardText.numberMedium.copyWith(
                 color: valueColor ?? c.textPrimary,
               ),
             ),
@@ -461,7 +516,7 @@ class _Cell extends StatelessWidget {
               detail!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppText.caption.copyWith(
+              style: _CardText.caption.copyWith(
                 color: c.textTertiary,
                 fontSize: 9.5,
               ),

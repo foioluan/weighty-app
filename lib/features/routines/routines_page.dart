@@ -151,7 +151,7 @@ class _RoutineCard extends ConsumerWidget {
                       children: [
                         Text(
                           summary.routine.name,
-                          style: AppText.title1.copyWith(color: c.textPrimary),
+                          style: AppText.title3.copyWith(color: c.textPrimary),
                         ),
                         const SizedBox(height: Space.xs),
                         Text(

@@ -306,7 +306,7 @@ class _ExercisePanel extends ConsumerWidget {
                 children: [
                   Text(
                     exercise.exercise.name,
-                    style: AppText.title1.copyWith(color: c.textPrimary),
+                    style: AppText.title2.copyWith(color: c.textPrimary),
                   ),
                   const SizedBox(height: 1),
                   Text(

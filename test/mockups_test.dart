@@ -63,6 +63,7 @@ Future<void> _loadFonts() async {
     'Inter-Regular.ttf',
     'Inter-Medium.ttf',
     'Inter-SemiBold.ttf',
+    'Inter-Bold.ttf',
   ]) {
     final bytes = await File('assets/fonts/$file').readAsBytes();
     await (FontLoader(
