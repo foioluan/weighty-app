@@ -99,6 +99,8 @@ void main() {
               themeMode: dark ? ThemeMode.dark : ThemeMode.light,
               scrollBehavior: const AppScrollBehavior(),
               routerConfig: router,
+              builder: (_, child) =>
+                  BackdropGroup(child: child ?? const SizedBox()),
               locale: const Locale('pt', 'BR'),
             ),
           ),

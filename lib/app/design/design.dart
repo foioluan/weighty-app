@@ -10,6 +10,7 @@ export 'components/controls.dart';
 export 'components/data.dart';
 export 'components/feedback.dart';
 export 'components/fields.dart';
+export 'components/glass.dart';
 export 'components/layout.dart';
 export 'haptics.dart';
 export 'components/motion.dart';
