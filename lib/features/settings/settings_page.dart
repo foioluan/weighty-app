@@ -246,7 +246,7 @@ class _BrandFooter extends StatelessWidget {
           WeightyLockup(style: AppText.title2, color: c.textSecondary),
           const SizedBox(height: Space.xs),
           Text(
-            'versão $appVersion',
+            'versão $appVersionLabel',
             style: AppText.caption.copyWith(color: c.textGhost),
           ),
           const SizedBox(height: Space.lg),
