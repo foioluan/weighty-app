@@ -875,11 +875,7 @@ class _ReferenceLine extends StatelessWidget {
       TextSpan(
         style: style,
         children: [
-          TextSpan(
-            text:
-                'última vez ${formatWeight(prev.referenceLoadKg!)} × '
-                '${prev.totalReps}',
-          ),
+          TextSpan(text: 'última vez ${_lastTime(prev)}'),
           if (delta != null)
             TextSpan(
               text: ' · $delta',
@@ -893,6 +889,21 @@ class _ReferenceLine extends StatelessWidget {
       textAlign: TextAlign.center,
     );
   }
+}
+
+/// O que foi feito da última vez, no formato da série: "75 × 7",
+/// "65 → 47,5 → 30 kg" no drop, "80 kg × (3+3+3)" no cluster. Somar as reps
+/// de um drop ("65 × 18") não descrevia nada que alguém tenha levantado.
+String _lastTime(PerformedSet prev) {
+  final segments = prev.filledSegments.toList();
+  return switch (prev.type) {
+    SetType.drop =>
+      '${segments.map((s) => formatWeight(s.weightKg)).join(' → ')} kg',
+    SetType.cluster =>
+      '${formatWeight(segments.first.weightKg)} kg × '
+          '(${segments.map((s) => s.reps).join('+')})',
+    _ => '${formatWeight(prev.referenceLoadKg!)} × ${prev.totalReps}',
+  };
 }
 
 /// A linha "Série 1 concluída · +2,5 kg" que aparece por um instante depois
@@ -970,15 +981,21 @@ class _SegmentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    // "1ª queda", "1º bloco": o rótulo visível é só o ordinal, porque o título
+    // do cartão já diz se é drop ou cluster.
     final noun = type == SetType.drop ? 'queda' : 'bloco';
+    final ordinal = '${index + 1}${type == SetType.drop ? 'ª' : 'º'}';
 
     return Row(
       children: [
         SizedBox(
-          width: 52,
+          width: 30,
           child: Text(
-            '${index + 1}º $noun',
-            style: AppText.footnote.copyWith(color: c.textSecondary),
+            ordinal,
+            style: AppText.subheadline.copyWith(
+              color: c.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         Expanded(
@@ -986,11 +1003,11 @@ class _SegmentRow extends StatelessWidget {
             value: segment.weightKg,
             ghost: previous?.weightKg,
             unit: 'kg',
-            semantics: 'Carga do ${index + 1}º $noun',
+            semantics: 'Carga · $ordinal $noun',
             onTap: () async {
               final v = await showNumberPad(
                 context,
-                title: 'Carga · ${index + 1}º $noun',
+                title: 'Carga · $ordinal $noun',
                 initial: segment.weightKg,
                 decimal: true,
                 unit: 'kg',
@@ -1012,11 +1029,11 @@ class _SegmentRow extends StatelessWidget {
             value: segment.reps.toDouble(),
             ghost: previous?.reps.toDouble(),
             unit: 'reps',
-            semantics: 'Repetições do ${index + 1}º $noun',
+            semantics: 'Repetições · $ordinal $noun',
             onTap: () async {
               final v = await showNumberPad(
                 context,
-                title: 'Repetições · ${index + 1}º $noun',
+                title: 'Repetições · $ordinal $noun',
                 initial: segment.reps.toDouble(),
                 unit: 'reps',
                 lastValue: previous?.reps.toDouble(),

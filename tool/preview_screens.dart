@@ -184,6 +184,9 @@ void main() {
       await settleFrames();
       await _capture(tester, key, '08d_teclado_$suffix');
       await dismiss();
+      await tester.tap(find.bySemanticsLabel('Série D'));
+      await settleFrames();
+      await _capture(tester, key, '08f_drop_$suffix');
       await tester.tap(find.bySemanticsLabel('Exercícios do treino'));
       await settleFrames();
       await _capture(tester, key, '08e_lista_$suffix');
