@@ -42,70 +42,68 @@ class RoutinesPage extends ConsumerWidget {
               ),
         orElse: () => null,
       ),
-      body: summaries.when(
-        loading: () => const SizedBox.shrink(),
-        error: (e, _) => EmptyState(
-          title: 'Não deu para carregar',
-          message: '$e',
-          icon: LucideIcons.circleAlert,
-        ),
+      slivers: summaries.when(
+        loading: () => const [],
+        error: (e, _) => [
+          AppSliverFill(
+            child: EmptyState(
+              title: 'Não deu para carregar',
+              message: '$e',
+              icon: LucideIcons.circleAlert,
+            ),
+          ),
+        ],
         data: (list) {
           if (list.isEmpty) {
-            return Column(
-              children: [
-                const Expanded(
-                  child: EmptyState(
-                    title: 'Monte seu primeiro treino',
-                    message:
-                        'Crie um treino como "Upper 1", escolha os exercícios '
-                        'e as séries. Depois é só começar e registrar as '
-                        'cargas.',
-                    icon: LucideIcons.dumbbell,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Space.xl,
-                    0,
-                    Space.xl,
-                    Space.xxl,
-                  ),
-                  child: Center(
-                    child: AppButton(
+            return [
+              AppSliverFill(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const EmptyState(
+                      title: 'Monte seu primeiro treino',
+                      message:
+                          'Crie um treino como "Upper 1", escolha os exercícios '
+                          'e as séries. Depois é só começar e registrar as '
+                          'cargas.',
+                      icon: LucideIcons.dumbbell,
+                    ),
+                    AppButton(
                       label: 'Criar treino',
                       icon: LucideIcons.plus,
                       onPressed: () => _createRoutine(context, ref),
                     ),
-                  ),
+                    const SizedBox(height: Space.xxxl),
+                  ],
                 ),
-              ],
-            );
+              ),
+            ];
           }
 
           final week = ref.watch(weekSummaryProvider).valueOrNull;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              Space.xl,
-              Space.xs,
-              Space.xl,
-              Space.xxxl,
-            ),
-            children: [
-              if (week != null && !week.isEmpty) ...[
-                StaggeredEntry(index: 0, child: WeekSummaryCard(summary: week)),
-                const SizedBox(height: Space.xxl),
-              ],
-              for (var i = 0; i < list.length; i++)
-                StaggeredEntry(
-                  index: i + 1,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: Space.lg),
-                    child: _RoutineCard(summary: list[i]),
+          return [
+            AppSliverList(
+              children: [
+                if (week != null && !week.isEmpty) ...[
+                  StaggeredEntry(
+                    index: 0,
+                    child: WeekSummaryCard(summary: week),
                   ),
-                ),
-            ],
-          );
+                  const SectionLabel('Treinos'),
+                ] else
+                  const SizedBox(height: Space.xs),
+                for (var i = 0; i < list.length; i++)
+                  StaggeredEntry(
+                    index: i + 1,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: Space.lg),
+                      child: _RoutineCard(summary: list[i]),
+                    ),
+                  ),
+              ],
+            ),
+          ];
         },
       ),
     );

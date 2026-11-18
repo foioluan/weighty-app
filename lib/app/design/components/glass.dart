@@ -93,21 +93,52 @@ class GlassSurface extends StatelessWidget {
 
     if (!shadow) return glass;
 
-    return DecoratedBox(
-      decoration: ShapeDecoration(
-        shape: shape,
-        shadows: [
-          BoxShadow(
-            color: c.glassShadow,
-            blurRadius: 28,
-            spreadRadius: -6,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return CustomPaint(
+      painter: _GlassShadowPainter(shape: shape, color: c.glassShadow),
       child: glass,
     );
   }
+}
+
+/// Sombra pintada só do lado de fora da forma.
+///
+/// Uma `BoxShadow` comum fica embaixo da superfície inteira — e, como o vidro
+/// é translúcido, ela aparecia através dele como uma meia-lua escura na base
+/// de cada círculo. Recortar o interior antes de pintar resolve.
+class _GlassShadowPainter extends CustomPainter {
+  const _GlassShadowPainter({required this.shape, required this.color});
+
+  final OutlinedBorder shape;
+  final Color color;
+
+  static const _blur = 14.0;
+  static const _offset = Offset(0, 6);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final outline = shape.getOuterPath(rect);
+
+    canvas.save();
+    canvas.clipPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(rect.inflate(_blur * 3)),
+        outline,
+      ),
+    );
+    canvas.drawPath(
+      outline.shift(_offset),
+      Paint()
+        ..color = color
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, _blur / 2),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_GlassShadowPainter old) =>
+      old.color != color || old.shape != shape;
 }
 
 class _GlassPainter extends CustomPainter {
@@ -297,6 +328,65 @@ class _GlassCircleButtonState extends State<GlassCircleButton> {
                 widget.icon,
                 size: widget.iconSize,
                 color: enabled ? (widget.color ?? c.textPrimary) : c.textGhost,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ação de texto do topo em cápsula de vidro ("Finalizar").
+class GlassTextButton extends StatefulWidget {
+  const GlassTextButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+
+  /// Cor do rótulo. Padrão: bronze — é uma ação, não um controle neutro.
+  final Color? color;
+
+  @override
+  State<GlassTextButton> createState() => _GlassTextButtonState();
+}
+
+class _GlassTextButtonState extends State<GlassTextButton> {
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final enabled = widget.onTap != null;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.label,
+      excludeSemantics: true,
+      child: PressScale(
+        onTap: widget.onTap,
+        scale: 0.94,
+        onPressedChanged: (v) => setState(() => _pressed = v),
+        child: SizedBox(
+          height: 44,
+          child: GlassSurface.capsule(
+            fill: _pressed ? Color.alphaBlend(c.fill, c.glassFill) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  widget.label,
+                  style: AppText.headline.copyWith(
+                    color: enabled ? (widget.color ?? c.accent) : c.textGhost,
+                  ),
+                ),
               ),
             ),
           ),

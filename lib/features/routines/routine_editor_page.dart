@@ -41,72 +41,95 @@ class RoutineEditorPage extends ConsumerWidget {
           onTap: () => _delete(context, ref, data),
         ),
       ],
-      body: detail.when(
-        loading: () => const SizedBox.shrink(),
-        error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
+      slivers: detail.when(
+        loading: () => const [],
+        error: (e, _) => [
+          AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+        ],
         data: (data) {
           if (data == null) {
-            return const EmptyState(
-              title: 'Treino não encontrado',
-              message: 'Ele pode ter sido arquivado.',
-            );
+            return const [
+              AppSliverFill(
+                child: EmptyState(
+                  title: 'Treino não encontrado',
+                  message: 'Ele pode ter sido arquivado.',
+                ),
+              ),
+            ];
           }
 
           // O estado vazio fica fora da lista reordenável: dentro dela ele era
           // um item arrastável, o que não faz sentido nenhum.
           if (data.exercises.isEmpty) {
-            return ListView(
-              padding: _listPadding,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: Space.xxl, bottom: Space.xxl),
-                  child: EmptyState(
-                    title: 'Nenhum exercício',
-                    message:
-                        'Adicione exercícios abaixo para montar este treino.',
-                  ),
-                ),
-                _AddExerciseRow(routineId: routineId),
-              ],
-            );
-          }
-
-          return ReorderableListView(
-            padding: _listPadding,
-            footer: Padding(
-              padding: const EdgeInsets.only(top: Space.md),
-              child: _AddExerciseRow(routineId: routineId),
-            ),
-            onReorderStart: (_) => Haptics.tick(),
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorder(ref, data, oldIndex, newIndex),
-            proxyDecorator: _liftCard,
-            children: [
-              for (var i = 0; i < data.exercises.length; i++)
-                Padding(
-                  key: ValueKey(data.exercises[i].link.id),
-                  padding: const EdgeInsets.only(bottom: Space.lg),
-                  child: StaggeredEntry(
-                    index: i,
-                    child: _ExerciseCard(
-                      routineId: routineId,
-                      detail: data.exercises[i],
-                      index: i,
+            return [
+              AppSliverList(
+                padding: _listPadding,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: Space.xxl, bottom: Space.xxl),
+                    child: EmptyState(
+                      title: 'Nenhum exercício',
+                      message:
+                          'Adicione exercícios abaixo para montar este treino.',
                     ),
                   ),
-                ),
-            ],
-          );
+                  _AddExerciseRow(routineId: routineId),
+                ],
+              ),
+            ];
+          }
+
+          return [
+            SliverPadding(
+              padding: _listPadding,
+              sliver: SliverReorderableList(
+                itemCount: data.exercises.length,
+                onReorderStart: (_) => Haptics.tick(),
+                onReorderItem: (oldIndex, newIndex) =>
+                    _reorder(ref, data, oldIndex, newIndex),
+                proxyDecorator: _liftCard,
+                // Toque longo em qualquer ponto do card, sem pegador visível —
+                // o mesmo gesto que o ReorderableListView dava sozinho.
+                itemBuilder: (context, i) =>
+                    ReorderableDelayedDragStartListener(
+                      key: ValueKey(data.exercises[i].link.id),
+                      index: i,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: Space.lg),
+                        child: StaggeredEntry(
+                          index: i,
+                          child: _ExerciseCard(
+                            routineId: routineId,
+                            detail: data.exercises[i],
+                            index: i,
+                          ),
+                        ),
+                      ),
+                    ),
+              ),
+            ),
+            AppSliverList(
+              padding: const EdgeInsets.fromLTRB(
+                Space.page,
+                Space.md,
+                Space.page,
+                0,
+              ),
+              children: [_AddExerciseRow(routineId: routineId)],
+            ),
+          ];
         },
       ),
     );
   }
 
   static const _listPadding = EdgeInsets.fromLTRB(
-    Space.xl,
-    Space.lg,
-    Space.xl,
-    Space.xxxl,
+    Space.page,
+    Space.xs,
+    Space.page,
+    0,
   );
 
   /// Realce do card arrastado. O padrão do `ReorderableListView` embrulha o

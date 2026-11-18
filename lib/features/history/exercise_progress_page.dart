@@ -28,19 +28,25 @@ class ExerciseProgressPage extends ConsumerWidget {
       largeTitle: exercise.valueOrNull?.name ?? 'Progressão',
       subtitle: exercise.valueOrNull?.muscleGroup.label,
       backLabel: backLabel,
-      body: history.when(
-        loading: () => const SizedBox.shrink(),
-        error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
-        data: (points) => points.isEmpty
-            ? const EmptyState(
-                title: 'Sem histórico',
-                message:
-                    'Este exercício ainda não foi registrado em nenhuma sessão '
-                    'finalizada.',
-                icon: LucideIcons.chartLine,
-              )
-            : _ProgressBody(points: points),
-      ),
+      slivers: [
+        history.when(
+          loading: () => const SliverToBoxAdapter(),
+          error: (e, _) => AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+          data: (points) => points.isEmpty
+              ? const AppSliverFill(
+                  child: EmptyState(
+                    title: 'Sem histórico',
+                    message:
+                        'Este exercício ainda não foi registrado em nenhuma '
+                        'sessão finalizada.',
+                    icon: LucideIcons.chartLine,
+                  ),
+                )
+              : _ProgressBody(points: points),
+        ),
+      ],
     );
   }
 }
@@ -67,13 +73,8 @@ class _ProgressBody extends ConsumerWidget {
       previous?.metrics.volumeKg,
     );
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        Space.xl,
-        Space.xxl,
-        Space.xl,
-        Space.xxxl,
-      ),
+    return AppSliverList(
+      padding: const EdgeInsets.fromLTRB(Space.page, Space.xxl, Space.page, 0),
       children: [
         Text(
           points.length == 1

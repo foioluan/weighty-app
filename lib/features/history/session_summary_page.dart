@@ -56,16 +56,22 @@ class SessionSummaryPage extends ConsumerWidget {
           ),
         ],
       ],
-      body: summary.when(
-        loading: () => const SizedBox.shrink(),
-        error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
-        data: (data) => data == null
-            ? const EmptyState(
-                title: 'Sessão não encontrada',
-                message: 'Ela pode ter sido descartada.',
-              )
-            : _SummaryBody(summary: data),
-      ),
+      slivers: [
+        summary.when(
+          loading: () => const SliverToBoxAdapter(),
+          error: (e, _) => AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+          data: (data) => data == null
+              ? const AppSliverFill(
+                  child: EmptyState(
+                    title: 'Sessão não encontrada',
+                    message: 'Ela pode ter sido descartada.',
+                  ),
+                )
+              : _SummaryBody(summary: data),
+        ),
+      ],
       bottomBar: Center(
         child: AppButton(label: 'Concluir', onPressed: () => context.go('/')),
       ),
@@ -91,13 +97,8 @@ class _SummaryBody extends StatelessWidget {
     final c = context.colors;
     final improved = summary.improvedCount;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        Space.xl,
-        Space.md,
-        Space.xl,
-        Space.xxxl,
-      ),
+    return AppSliverList(
+      padding: const EdgeInsets.fromLTRB(Space.page, Space.md, Space.page, 0),
       children: [
         if (improved > 0) ...[
           Row(

@@ -193,7 +193,7 @@ class AppColors extends ThemeExtension<AppColors> {
     upSubtle: Color(0x2930D158),
     downSubtle: Color(0x29FF453A),
     fill: Color(0x3D78788C),
-    glassFill: Color(0x8C232327),
+    glassFill: Color(0x70232327),
     glassEdge: Color(0x33FFFFFF),
     glassHighlight: Color(0x40FFFFFF),
     glassShadow: Color(0x66000000),

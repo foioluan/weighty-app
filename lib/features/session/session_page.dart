@@ -57,7 +57,6 @@ class _SessionPageState extends ConsumerState<SessionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final session = ref.watch(liveSessionProvider(widget.sessionId));
 
     return session.when(
@@ -83,22 +82,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         return AppScaffold(
           title: live.session.routineName,
           actions: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _finish(live),
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-                alignment: Alignment.center,
-                child: Text(
-                  'Finalizar',
-                  style: AppText.callout.copyWith(
-                    color: c.accent,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
+            GlassTextButton(label: 'Finalizar', onTap: () => _finish(live)),
           ],
           banner: exercises.isEmpty
               ? null
@@ -225,9 +209,6 @@ class _SessionStrip extends StatelessWidget {
         Space.md,
         Space.xl,
         Space.md,
-      ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.hairline, width: 0.5)),
       ),
       child: Row(
         children: [

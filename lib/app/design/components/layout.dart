@@ -1,97 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme.dart';
+import 'glass.dart';
 
-/// Barra de navegação compacta (48 px). O Material 3 usa 64 e o large app bar
-/// chega a 152 — parte do "grande demais" vinha daí. A hierarquia da tela vem
-/// do título grande dentro do conteúdo, não da altura da barra.
-class AppNavBar extends StatelessWidget {
-  const AppNavBar({
-    super.key,
-    this.title,
-    this.actions = const [],
-    this.showBack = true,
-    this.onBack,
-  });
+/// Altura da faixa fixa do topo: o círculo de vidro de 44 com folga.
+const _topBarHeight = 52.0;
 
-  final String? title;
-  final List<Widget> actions;
-  final bool showBack;
-  final VoidCallback? onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final canPop = showBack && (onBack != null || Navigator.canPop(context));
-
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: c.bg,
-        border: Border(bottom: BorderSide(color: c.hairline, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          if (canPop)
-            _NavAction(
-              icon: LucideIcons.chevronLeft,
-              size: 26,
-              onTap: onBack ?? () => Navigator.maybePop(context),
-              semanticLabel: 'Voltar',
-            )
-          else
-            const SizedBox(width: Space.xl),
-          Expanded(
-            child: Text(
-              title ?? '',
-              style: AppText.title2.copyWith(color: c.textPrimary),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          ...actions,
-          const SizedBox(width: Space.sm),
-        ],
-      ),
-    );
-  }
-}
-
-/// Ícone da barra de navegação. Área de toque de 44 px com o desenho em 20 —
-/// o alvo é grande, o traço é leve.
-class _NavAction extends StatelessWidget {
-  const _NavAction({
-    required this.icon,
-    required this.onTap,
-    required this.semanticLabel,
-    this.size = 20,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String semanticLabel;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: Icon(icon, size: size, color: context.colors.textSecondary),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+/// Ação do topo da tela, em círculo de vidro.
+///
+/// No iOS 26 os controles da barra deixaram de ser ícones soltos e viraram
+/// botões de vidro flutuando sobre o conteúdo — que agora passa por baixo
+/// deles ao rolar.
 class AppNavIcon extends StatelessWidget {
   const AppNavIcon({
     super.key,
@@ -106,11 +27,11 @@ class AppNavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _NavAction(icon: icon, onTap: onTap, semanticLabel: label);
+    return GlassCircleButton(icon: icon, onTap: onTap, label: label);
   }
 }
 
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends StatefulWidget {
   const AppScaffold({
     super.key,
     this.title,
@@ -120,16 +41,22 @@ class AppScaffold extends StatelessWidget {
     this.backLabel,
     this.actions = const [],
     this.showBack = true,
-    required this.body,
+    this.body,
+    this.slivers,
     this.bottomBar,
     this.banner,
-  });
+  }) : assert(
+         (body == null) != (slivers == null),
+         'Passe body ou slivers, não os dois.',
+       );
 
+  /// Título pequeno, centralizado na faixa do topo. Com [largeTitle] ele só
+  /// aparece depois que o título grande sai de vista.
   final String? title;
 
-  /// Título grande no topo do conteúdo, para as telas raiz das abas. Quando
-  /// presente, a barra de navegação some: numa aba não há para onde voltar, e
-  /// uma barra de 48 px só com título repetiria a informação.
+  /// Título grande no topo do conteúdo. Rola junto com a lista e, quando sai
+  /// de vista, reaparece pequeno e centralizado no topo — o comportamento das
+  /// telas do iOS. Exige [slivers].
   final String? largeTitle;
 
   /// Ocupa o lugar do título grande com um desenho em vez de texto. É o que
@@ -140,123 +67,373 @@ class AppScaffold extends StatelessWidget {
   /// a data sem gastar uma linha do corpo.
   final String? subtitle;
 
-  /// Nome de onde a tela volta — "Histórico", "Treinos". Preenchê-lo troca a
-  /// barra de navegação por um link discreto acima do título grande.
-  ///
-  /// Era a barra de 48 px com hairline e título pequeno a única forma de
-  /// Material que sobrou no app: as abas já resolvem o topo com título grande
-  /// dentro do conteúdo, e a tela de detalhe repetia a informação numa moldura
-  /// que nada mais usa. Além disso um link nomeado diz *para onde* volta, o que
-  /// uma seta sozinha não faz.
+  /// Nome de onde a tela volta — "Histórico", "Treinos". Não aparece escrito:
+  /// o voltar é um círculo de vidro, como no iOS 26, e o nome vai para o
+  /// leitor de tela ("Voltar para Histórico").
   final String? backLabel;
 
+  /// Botões do topo, à direita. Use [AppNavIcon] ou [GlassTextButton].
   final List<Widget> actions;
   final bool showBack;
-  final Widget body;
+
+  /// Conteúdo que não rola junto com um título grande — a sessão de treino,
+  /// que é um carrossel de exercícios.
+  final Widget? body;
+
+  /// Conteúdo das telas com título grande. O título vira o primeiro sliver,
+  /// e por isso rola junto com a lista.
+  final List<Widget>? slivers;
 
   /// Ação fixa no rodapé. Substitui o FloatingActionButton: numa tela usada de
   /// pé, o polegar alcança a base, e o botão nunca cobre conteúdo.
   final Widget? bottomBar;
 
-  /// Faixa logo abaixo da barra (ex.: treino em andamento).
+  /// Faixa logo abaixo do topo (ex.: treino em andamento).
   final Widget? banner;
+
+  @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  /// Quanto a lista principal já rolou. Controla o degradê do topo e o
+  /// aparecimento do título pequeno sem reconstruir a tela inteira.
+  final _offset = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _offset.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    // Só a lista da própria tela: um carrossel horizontal de chips lá dentro
+    // também emite, e não pode mexer no topo.
+    if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+      _offset.value = n.metrics.pixels;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Scaffold(
-      backgroundColor: c.bg,
-      body: SafeArea(
+    final w = widget;
+    final canPop =
+        w.showBack && (w.backLabel != null || Navigator.canPop(context));
+
+    final topBar = _TopBar(
+      back: canPop
+          ? GlassCircleButton(
+              icon: LucideIcons.chevronLeft,
+              iconSize: 24,
+              label: w.backLabel == null
+                  ? 'Voltar'
+                  : 'Voltar para ${w.backLabel}',
+              onTap: () => Navigator.maybePop(context),
+            )
+          : null,
+      title: w.title ?? w.largeTitle,
+      // Sem título grande, o pequeno é o título da tela e fica sempre visível.
+      titleVisibility: w.slivers != null && w.title == null ? _offset : null,
+      actions: w.actions,
+    );
+
+    final Widget content;
+    if (w.slivers != null) {
+      content = _SliverLayout(
+        offset: _offset,
+        onScroll: _onScroll,
+        topBar: topBar,
+        header: _largeTitle(context),
+        banner: w.banner,
+        slivers: w.slivers!,
+        bottomBar: w.bottomBar,
+      );
+    } else {
+      content = SafeArea(
         bottom: false,
         child: Column(
           children: [
-            if (largeTitle != null || largeTitleContent != null) ...[
-              if (backLabel != null)
-                // A Column da casca centraliza por padrão; o voltar precisa
-                // encostar na mesma margem esquerda do título.
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AppBackLink(label: backLabel!),
-                ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  Space.xl,
-                  // Com o voltar acima, o título já tem respiro: repetir os
-                  // 20 px daria um vão grande demais no topo.
-                  backLabel == null ? Space.xxl : Space.xs,
-                  Space.sm,
-                  Space.lg,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child:
-                          largeTitleContent ??
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                largeTitle!,
-                                style: AppText.largeTitle.copyWith(
-                                  color: c.textPrimary,
-                                ),
-                              ),
-                              if (subtitle != null) ...[
-                                const SizedBox(height: 1),
-                                Text(
-                                  subtitle!,
-                                  style: AppText.footnote.copyWith(
-                                    color: c.textTertiary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                    ),
-                    ...actions,
-                  ],
-                ),
-              ),
-            ] else
-              AppNavBar(title: title, actions: actions, showBack: showBack),
-            ?banner,
-            Expanded(child: body),
-            if (bottomBar != null)
-              Container(
-                decoration: BoxDecoration(
-                  color: c.bg,
-                  border: Border(
-                    top: BorderSide(color: c.hairline, width: 0.5),
-                  ),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.xl,
-                      Space.md,
-                      Space.xl,
-                      Space.md,
-                    ),
-                    child: bottomBar,
-                  ),
-                ),
-              ),
+            topBar,
+            ?w.banner,
+            Expanded(child: w.body!),
+            if (w.bottomBar != null) _BottomBar(child: w.bottomBar!),
           ],
+        ),
+      );
+    }
+
+    return Scaffold(backgroundColor: c.bg, body: content);
+  }
+
+  Widget? _largeTitle(BuildContext context) {
+    final w = widget;
+    if (w.largeTitle == null && w.largeTitleContent == null) return null;
+    final c = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Space.page,
+        Space.xs,
+        Space.page,
+        Space.lg,
+      ),
+      child:
+          w.largeTitleContent ??
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                w.largeTitle!,
+                style: AppText.largeTitle.copyWith(color: c.textPrimary),
+              ),
+              if (w.subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  w.subtitle!,
+                  style: AppText.subheadline.copyWith(color: c.textSecondary),
+                ),
+              ],
+            ],
+          ),
+    );
+  }
+}
+
+/// Tela com título grande: a lista ocupa tudo e passa por baixo do topo e da
+/// barra de abas; o topo é uma faixa fixa por cima, com os botões de vidro.
+class _SliverLayout extends StatelessWidget {
+  const _SliverLayout({
+    required this.offset,
+    required this.onScroll,
+    required this.topBar,
+    required this.header,
+    required this.banner,
+    required this.slivers,
+    required this.bottomBar,
+  });
+
+  final ValueListenable<double> offset;
+  final NotificationListenerCallback<ScrollNotification> onScroll;
+  final Widget topBar;
+  final Widget? header;
+  final Widget? banner;
+  final List<Widget> slivers;
+  final Widget? bottomBar;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final padding = MediaQuery.paddingOf(context);
+    final top = padding.top + _topBarHeight;
+
+    return Stack(
+      children: [
+        NotificationListener<ScrollNotification>(
+          onNotification: onScroll,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: SizedBox(height: top)),
+              if (header != null) SliverToBoxAdapter(child: header),
+              if (banner != null) SliverToBoxAdapter(child: banner),
+              ...slivers,
+              // A barra de abas flutua por cima do fim da lista; sem esta
+              // folga o último item ficaria preso atrás dela.
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height:
+                      padding.bottom +
+                      Space.xxl +
+                      (bottomBar == null ? 0 : Heights.control + Space.xxl),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Degradê de borda: o conteúdo se dissolve ao passar sob o topo, em
+        // vez de cortar seco numa barra opaca. Aparece só depois que algo
+        // passou por ali.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: top + Space.xxxl,
+          child: IgnorePointer(
+            child: ValueListenableBuilder<double>(
+              valueListenable: offset,
+              builder: (context, value, child) =>
+                  Opacity(opacity: (value / 16).clamp(0.0, 1.0), child: child),
+              child: _EdgeFade(color: c.bg, fromTop: true),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          child: SafeArea(bottom: false, child: topBar),
+        ),
+        if (bottomBar != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _BottomBar(floating: true, child: bottomBar!),
+          ),
+      ],
+    );
+  }
+}
+
+/// Faixa fixa do topo: voltar à esquerda, título pequeno no centro, ações à
+/// direita — tudo em vidro, sem fundo e sem linha.
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.back,
+    required this.title,
+    required this.titleVisibility,
+    required this.actions,
+  });
+
+  final Widget? back;
+  final String? title;
+
+  /// Quando presente, o título só aparece depois que a lista rolou o título
+  /// grande para fora de vista.
+  final ValueListenable<double>? titleVisibility;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
+    Widget? label;
+    if (title != null) {
+      label = Text(
+        title!,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.headline.copyWith(color: c.textPrimary),
+      );
+      final visibility = titleVisibility;
+      if (visibility != null) {
+        label = ValueListenableBuilder<double>(
+          valueListenable: visibility,
+          builder: (context, value, child) => AnimatedOpacity(
+            duration: AppDurations.fast,
+            // O título grande tem ~40 px; depois disso ele já saiu de baixo
+            // do topo e o pequeno assume.
+            opacity: value > 40 ? 1 : 0,
+            child: child,
+          ),
+          child: label,
+        );
+      }
+    }
+
+    return SizedBox(
+      height: _topBarHeight,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (label != null)
+            Padding(
+              // Folga lateral para o título nunca passar por baixo dos
+              // botões: dois círculos de 44 de cada lado.
+              padding: const EdgeInsets.symmetric(horizontal: 108),
+              child: label,
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+            child: Row(
+              children: [
+                ?back,
+                const Spacer(),
+                for (var i = 0; i < actions.length; i++) ...[
+                  if (i > 0) const SizedBox(width: Space.md),
+                  actions[i],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rodapé de ação, sem fundo opaco nem linha: o botão flutua sobre um
+/// degradê que apaga o conteúdo embaixo dele.
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.child, this.floating = false});
+
+  final Widget child;
+
+  /// Por cima de uma lista que rola por baixo — precisa do degradê. Fora
+  /// disso a faixa só ocupa o seu espaço.
+  final bool floating;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final bar = SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          Space.page,
+          Space.md,
+          Space.page,
+          Space.md,
+        ),
+        child: child,
+      ),
+    );
+    if (!floating) return bar;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          top: -Space.xxl,
+          child: IgnorePointer(child: _EdgeFade(color: c.bg, fromTop: false)),
+        ),
+        bar,
+      ],
+    );
+  }
+}
+
+/// Degradê da cor do fundo para transparente — a "borda de rolagem" do iOS 26,
+/// que substitui a barra translúcida com linha.
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({required this.color, required this.fromTop});
+
+  final Color color;
+  final bool fromTop;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+          end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+          colors: [
+            color,
+            color.withValues(alpha: 0.94),
+            color.withValues(alpha: 0.7),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.6, 0.8, 1],
         ),
       ),
     );
   }
 }
 
-/// "‹ Histórico" — o voltar das telas de detalhe.
-///
-/// Fixo, acima do título grande e fora do conteúdo que rola: se ele subisse com
-/// a lista, sobraria só o gesto do sistema para voltar.
-///
-/// Público porque a tela de imagem não usa AppScaffold — ela é um card em tela
-/// cheia — e precisa do mesmo voltar para não virar a exceção da regra.
+/// O voltar das telas que não usam [AppScaffold] — a de imagem, que é um card
+/// em tela cheia. Mesmo círculo de vidro do topo das outras telas, para ela
+/// não virar a exceção da regra.
 class AppBackLink extends StatelessWidget {
   const AppBackLink({super.key, required this.label});
 
@@ -264,32 +441,47 @@ class AppBackLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-
-    return Semantics(
-      button: true,
-      label: 'Voltar para $label',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.xl, Space.xs, Space.xl, 0),
+      child: GlassCircleButton(
+        icon: LucideIcons.chevronLeft,
+        iconSize: 24,
+        label: 'Voltar para $label',
         onTap: () => Navigator.maybePop(context),
-        child: Padding(
-          // Alvo de 40 px de altura sem desenhar nada: o texto é pequeno, mas o
-          // toque não pode ser.
-          padding: const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.xl, 0),
-          child: SizedBox(
-            height: 28,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.chevronLeft, size: 16, color: c.accent),
-                const SizedBox(width: 1),
-                Text(label, style: AppText.footnote.copyWith(color: c.accent)),
-              ],
-            ),
-          ),
-        ),
       ),
     );
+  }
+}
+
+/// Lista de filhos como sliver, com a margem lateral das telas.
+class AppSliverList extends StatelessWidget {
+  const AppSliverList({
+    super.key,
+    required this.children,
+    this.padding = const EdgeInsets.symmetric(horizontal: Space.page),
+  });
+
+  final List<Widget> children;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: padding,
+      sliver: SliverList.list(children: children),
+    );
+  }
+}
+
+/// Conteúdo que ocupa o resto da tela — o estado vazio e o de erro.
+class AppSliverFill extends StatelessWidget {
+  const AppSliverFill({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverFillRemaining(hasScrollBody: false, child: child);
   }
 }
 

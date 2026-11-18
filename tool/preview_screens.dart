@@ -118,6 +118,16 @@ void main() {
       await shot('/', '01_treinos');
       await shot('/historico', '02_historico');
       await shot('/exercicios', '03_exercicios');
+      // Rolada: o título grande sai, o pequeno aparece no topo e a lista passa
+      // por baixo do vidro.
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -500),
+      );
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 30));
+      }
+      await _capture(tester, key, '03b_exercicios_rolado_$suffix');
       await shot('/ajustes', '04_ajustes');
       await shot('/treino/${ids.upper}/editar?de=Treinos', '05_editor');
       await shot('/sessao/$summaryId?de=Histórico', '06_resumo');

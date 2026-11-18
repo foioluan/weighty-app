@@ -70,13 +70,13 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
       largeTitle: widget.selecting ? null : 'Exercícios',
       title: widget.selecting ? widget.title : null,
       showBack: widget.selecting,
-      body: Column(
-        children: [
-          Padding(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(
-              Space.xl,
+              Space.page,
               Space.xs,
-              Space.xl,
+              Space.page,
               Space.md,
             ),
             child: AppTextField(
@@ -94,11 +94,13 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
                     },
             ),
           ),
-          SizedBox(
-            height: 38,
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 40,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+              padding: const EdgeInsets.symmetric(horizontal: Space.page),
               children: [
                 AppChip(
                   label: 'Todos',
@@ -121,62 +123,58 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
               ],
             ),
           ),
-          Expanded(
-            child: catalog.when(
-              loading: () => const SizedBox.shrink(),
-              error: (e, _) => EmptyState(title: 'Erro', message: '$e'),
-              data: (items) => ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  Space.xl,
-                  Space.lg,
-                  Space.xl,
-                  Space.xxxl,
+        ),
+        catalog.when(
+          loading: () => const SliverToBoxAdapter(),
+          error: (e, _) => AppSliverFill(
+            child: EmptyState(title: 'Erro', message: '$e'),
+          ),
+          data: (items) => AppSliverList(
+            padding: const EdgeInsets.fromLTRB(
+              Space.page,
+              Space.lg,
+              Space.page,
+              0,
+            ),
+            children: [
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.xxl),
+                  child: EmptyState(
+                    title: 'Nada encontrado',
+                    message: filtering
+                        ? 'Nenhum exercício com esse filtro. Limpe a busca '
+                              'ou crie um novo abaixo.'
+                        : 'Crie um exercício novo abaixo.',
+                  ),
+                )
+              else
+                InsetGroup(
+                  separatorIndent: 0,
+                  children: [
+                    for (final exercise in items)
+                      _ExerciseRow(
+                        exercise,
+                        selecting: widget.selecting,
+                        selectIcon: widget.selectIcon,
+                      ),
+                  ],
                 ),
+              const SizedBox(height: Space.xl),
+              InsetGroup(
                 children: [
-                  if (items.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: Space.xxl),
-                      child: EmptyState(
-                        title: 'Nada encontrado',
-                        message: filtering
-                            ? 'Nenhum exercício com esse filtro. Limpe a busca '
-                                  'ou crie um novo abaixo.'
-                            : 'Crie um exercício novo abaixo.',
-                      ),
-                    )
-                  else
-                    InsetGroup(
-                      separatorIndent: 0,
-                      children: [
-                        for (final exercise in items)
-                          _ExerciseRow(
-                            exercise,
-                            selecting: widget.selecting,
-                            selectIcon: widget.selectIcon,
-                          ),
-                      ],
-                    ),
-                  const SizedBox(height: Space.xl),
-                  InsetGroup(
-                    children: [
-                      AppRow(
-                        title: 'Novo exercício',
-                        titleColor: c.accent,
-                        leading: Icon(
-                          LucideIcons.plus,
-                          size: 19,
-                          color: c.accent,
-                        ),
-                        onTap: () => _createExercise(context, ref),
-                      ),
-                    ],
+                  AppRow(
+                    title: 'Novo exercício',
+                    titleColor: c.accent,
+                    leading: Icon(LucideIcons.plus, size: 20, color: c.accent),
+                    onTap: () => _createExercise(context, ref),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

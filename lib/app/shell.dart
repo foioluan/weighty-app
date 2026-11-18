@@ -45,9 +45,14 @@ class AppShell extends ConsumerWidget {
     // aviso ele aparecia atrás dela nas quatro telas com abas. A leitura da
     // área segura é feita aqui porque o Scaffold a consome para o corpo.
     return ToastInset(
-      bottom: AppTabBar.height + MediaQuery.paddingOf(context).bottom,
+      bottom: AppTabBar.reservedHeight(context),
       child: Scaffold(
         backgroundColor: context.colors.bg,
+        // A cápsula flutua por cima do conteúdo: as listas rolam por baixo
+        // dela, e é isso que deixa o vidro aparecer. O Scaffold soma a altura
+        // da barra ao padding de baixo, e as telas usam esse padding para o
+        // último item não ficar preso atrás da cápsula.
+        extendBody: true,
         body: navigationShell,
         bottomNavigationBar: AppTabBar(
           items: tabs,
