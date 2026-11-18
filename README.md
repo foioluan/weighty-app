@@ -83,50 +83,107 @@ o Android recusa updates com assinatura diferente.
 ## Design
 
 O app não usa os widgets padrão do Material. `lib/app/design/` define um sistema
-próprio e as telas importam só `design/design.dart`.
+próprio e as telas importam só `design/design.dart`. A referência visual é o
+iOS 26 (Liquid Glass): barras e controles de vidro flutuando sobre o conteúdo,
+cartões sem borda de canto contínuo, tipografia do sistema.
 
-- **Cor de ação: bronze** (`#E0A64B` no escuro, `#9A6E14` no claro). Verde e
-  vermelho ficam reservados **só para progressão** — se o botão fosse verde,
-  "evoluiu" perderia força como sinal.
+- **Cor de ação: bronze** (`#F5B24A` no escuro, `#A36800` no claro — o
+  `#A86B00` do estudo dava 4,4:1 sobre branco). Verde e vermelho ficam
+  reservados **só para progressão** — se o botão fosse verde, "evoluiu" perderia
+  força como sinal.
+- **Cinzas de sistema da Apple**, com fundo preto puro no escuro (`#F2F2F7` no
+  claro) e cartão `#1C1C1E`. É o contraste entre os dois que separa o cartão,
+  sem linha nenhuma em volta.
 - **Grupos musculares têm cor própria**, usada em pontos de 7 px e barras de
   2 px. Nenhum tom cai na faixa do bronze (para não parecer ação) nem na do
   verde (para não sugerir progresso).
-- **Tipografia Inter**, embarcada em `assets/fonts` (400/500/600). Numerais
-  tabulares em toda carga e repetição: sem isso a coluna "dança" quando 9 vira
-  10 no meio da série.
-- **Escala compacta**: corpo de 15 px, alvos de toque de 44 px. A hierarquia vem
-  de peso e cor, não de tamanho.
+- **Tipografia Inter**, embarcada em `assets/fonts` (400 a 700, release 4.1).
+  Numerais tabulares em toda carga e repetição: sem isso a coluna "dança" quando
+  9 vira 10 no meio da série.
+- **Escala do iOS**: corpo de 17, título grande de 34 em negrito, títulos de
+  seção de 22 em caixa normal ("Treinos", "Por exercício"). A escala compacta
+  anterior (corpo 15, título 28) deixava a hierarquia só na cor. A maiúscula
+  pequena com tracking ficou só nos cabeçalhos de coluna.
+- **Cantos contínuos.** Toda superfície usa superelipse (`AppShapes`), não arco
+  de círculo: cartão de 26, folha e alerta de 32. É a curva sem "quina" onde o
+  arco encontra a reta que faz um canto grande parecer Apple.
 - **Uma ação cheia por app.** `AppButton` é pílula (raio = altura ÷ 2) e por
   padrão tem a largura do conteúdo. `expand: true` aparece **uma vez** em todo o
   código, em "Concluir série": é a única ação tocada com a mão suada, entre
   séries, sem olhar a tela. Retângulo cheio de largura total é a silhueta do
   botão do Material, e dar essa força a "Salvar" e "Criar treino" fazia tudo
   parecer igualmente urgente.
-- **Telas de detalhe não têm barra de navegação.** Em vez dela, `AppBackLink`
-  põe "‹ Histórico" em bronze acima do título grande — sem hairline, sem fundo,
-  fixo. A barra de 48 px com título pequeno era a última forma de Material do
-  app e repetia informação que o título grande já dava; um link nomeado ainda
-  diz *para onde* volta. O nome vem na query (`?de=Histórico`) porque a mesma
-  tela é aberta de lugares diferentes.
-- **Barra de abas própria** (54 px) no lugar do `NavigationBar` do Material, que
-  tem 80 px e pílula animada atrás do ícone. As telas raiz não têm barra de
-  navegação: o título grande mora no conteúdo.
+- **O título grande rola com a lista.** As telas montam o conteúdo em slivers
+  pelo `AppScaffold`; o título grande é o primeiro deles e, quando sai de vista,
+  reaparece pequeno e centralizado no topo. O topo não tem barra nem linha: é uma
+  faixa fixa de botões de vidro sobre um degradê que dissolve o conteúdo, a
+  borda de rolagem do iOS 26.
+- **O voltar é um círculo de vidro**, como no iOS 26. O nome de destino
+  ("Voltar para Histórico") continua indo para o leitor de tela; vem na query
+  (`?de=Histórico`) porque a mesma tela é aberta de lugares diferentes.
+- **Transição da rota Cupertino**: a tela entra inteira pela direita, a de baixo
+  recua com paralaxe, e arrastar da borda volta acompanhando o dedo.
+- **Barra de abas em cápsula de vidro**, flutuando 8 px acima da base, com a aba
+  ativa numa pílula que desliza com mola. A casca usa `extendBody`: as listas
+  passam por baixo dela, e é isso que deixa o vidro aparecer. O
+  `NavigationBar` do Material (80 px, pílula atrás do ícone) nunca entrou.
 - **Ícones Lucide**, não os do Material — o conjunto de ícones é um dos maiores
   denunciadores de "app Android padrão".
 - **Rolagem elástica** e sem o brilho de overscroll, pelo `AppScrollBehavior`.
 - **Componentes próprios** no lugar dos padrões: `AppToast` (SnackBar),
-  `showAppDialog` (AlertDialog, no formato de alerta do iOS), `InsetGroup` +
-  `AppRow` (lista agrupada), `AppSegmented`, `AppChip`, `NumberCell`.
-- **O aviso é uma pílula**, não uma barra: `AppToast` abraça o texto, centrado
-  na base, com o mesmo raio do botão. Toque ou arrasto para baixo dispensam na
-  hora — esperar os 3 s era a única saída antes. Quem tem barra embaixo informa
-  o espaço a reservar pelo `ToastInset`; sem isso o toast nascia atrás da barra
-  de abas, porque ele mora no Overlay da raiz e não enxerga a tela.
+  `showAppDialog` (AlertDialog, no formato de alerta do iOS 26), `showAppMenu`
+  (menu suspenso), `showAppSheet` (folha), `InsetGroup` + `AppRow` (lista
+  agrupada), `AppSegmented`, `AppChip`, `NumberCell`.
+- **Tudo encolhe ao toque**, com mola (`PressScale`): botões, chips, cartões
+  tocáveis, abas e círculos de vidro. Linhas de lista só realçam, como no iOS.
+- **O aviso é uma cápsula de vidro**, não uma barra: `AppToast` abraça o texto,
+  centrado acima da barra de abas. Toque ou arrasto para baixo dispensam na
+  hora. Quem tem barra embaixo informa o espaço a reservar pelo `ToastInset`
+  (`AppTabBar.reservedHeight`); sem isso o toast nascia atrás da barra de abas,
+  porque ele mora no Overlay da raiz e não enxerga a tela.
+- **Alerta, folha e menu.** O alerta é vidro denso com botões em cápsula lado a
+  lado: o preferido em bronze cheio, o destrutivo vermelho sobre o próprio tom —
+  vermelho cheio fica de fora, porque no app ele quer dizer "regrediu". A folha
+  flutua solta das bordas; a escolha de exercício abre como folha do iOS
+  (`CupertinoSheetRoute`), com o editor encolhido atrás e arrasto para fechar.
+  Tocar fora fecha qualquer um dos três — e só passou a fechar quando o fundo
+  desfocado deixou de engolir o toque (`test/dialog_test.dart`).
 - **Todo texto fora de uma tela precisa de um `Material` acima.** Sem ele o
   Flutter desenha o sublinhado amarelo duplo de "faltou Material" — inclusive em
   build release, no aparelho. Já apareceu na abertura e no toast; hoje o
   diálogo, a folha, o toast e o card arrastado do editor têm o seu, e há teste
   de regressão para os dois últimos.
+
+### Vidro
+
+`GlassSurface` desenha o vidro com o que o Flutter oferece: desfoque saturado
+do que está atrás, preenchimento translúcido, borda de 1 px que pega luz no
+topo e se apaga embaixo, reflexo e sombra. Não há refração — a lente na borda
+do vidro da Apple —, e isso é aceito: em tamanho de celular, é a combinação
+acima que carrega a leitura de vidro.
+
+- **A saturação importa.** Sem ela o desfoque vira vidro fosco cinza; com ela o
+  conteúdo colorido acende através da superfície.
+- **Um filtro só, num `BackdropGroup`.** Todos os vidros usam o mesmo filtro e
+  ficam sob um grupo na raiz (`main.dart`), então dividem uma passada de
+  desfoque em vez de cada um refazer a sua.
+- **A sombra é pintada só do lado de fora da forma.** Uma `BoxShadow` comum fica
+  embaixo da superfície inteira e, como o vidro é translúcido, aparecia através
+  dele como uma meia-lua escura na base de cada círculo.
+
+Vidro é para o que flutua (barra de abas, botões do topo, menu, folha, alerta,
+aviso). Cartões e listas, que fazem parte do conteúdo, são superfícies opacas.
+
+### Conferir telas
+
+```bash
+PREVIEW_OUT=/caminho flutter test tool/preview_screens.dart
+```
+
+Renderiza as telas reais, com os dados de exemplo de `tool/demo_data.dart`, em
+PNG nos dois temas — inclusive com a lista rolada sob o vidro, o menu, a folha,
+o alerta e o gráfico com o dedo pousado. `PREVIEW_SCALE=3` sai na densidade do
+aparelho.
 
 Os rótulos de coluna vivem em `ColumnHeader`, nunca dentro das células. Foi o
 que corrigiu o desalinhamento entre carga e repetições: um rótulo embaixo do
@@ -144,7 +201,8 @@ para indicador nenhum), drop e cluster tingidos, normais em superfície de campo
 As ações por exercício moram todas no `⋯` — substituir, duplicar a última série,
 remover. Antes eram um X no cabeçalho mais dois botões de texto no rodapé de
 **cada** card: com seis exercícios, doze botões na tela. Remover agora confirma,
-como já fazia excluir treino.
+como já fazia excluir treino. O `⋯` abre um menu de vidro que nasce do próprio
+botão; a folha que subia da base levava o olho para longe do que foi tocado.
 
 Reordenar é por **toque longo** no card, sem pegador visível, e o card arrastado
 só cresce 3% — o `proxyDecorator` padrão do `ReorderableListView` embrulha o item
@@ -215,7 +273,8 @@ uma fatia de 9% (32°) não tem o que dar. O resultado eram proporções
 visivelmente erradas e fatias pequenas viradas em pastilhas soltas.
 
 O card tem tamanho fixo, então conteúdo demais estoura em silêncio numa build
-release. `test/share_card_test.dart` cobre os casos extremos (lista de recordes
+release. Por isso ele tem tipografia própria, congelada na escala compacta: a
+escala do app cresceu para a tela, onde há rolagem, e aqui não há. `test/share_card_test.dart` cobre os casos extremos (lista de recordes
 cheia com sobra, doze grupos musculares, nomes longos, treino de uma série só) e
 falha se qualquer um deles passar de 400 × 500. Com `SHARE_CARD_OUT=/prefixo`
 ele também grava cada caso em PNG para conferência a olho.
