@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:treino/app/providers.dart';
 import 'package:treino/app/router.dart';
 import 'package:treino/app/settings.dart';
@@ -107,6 +108,17 @@ void main() {
         ),
       );
 
+      Future<void> settleFrames() async {
+        for (var i = 0; i < 30; i++) {
+          await tester.pump(const Duration(milliseconds: 30));
+        }
+      }
+
+      Future<void> dismiss() async {
+        await tester.tapAt(const Offset(196, 120));
+        await settleFrames();
+      }
+
       Future<void> shot(String path, String name) async {
         router.go(path);
         for (var i = 0; i < 30; i++) {
@@ -130,6 +142,14 @@ void main() {
       await _capture(tester, key, '03b_exercicios_rolado_$suffix');
       await shot('/ajustes', '04_ajustes');
       await shot('/treino/${ids.upper}/editar?de=Treinos', '05_editor');
+      await tester.tap(find.byIcon(LucideIcons.ellipsis).first);
+      await settleFrames();
+      await _capture(tester, key, '05b_menu_$suffix');
+      await dismiss();
+      await tester.tap(find.text('8-10').first);
+      await settleFrames();
+      await _capture(tester, key, '05c_folha_$suffix');
+      await dismiss();
       await shot('/sessao/$summaryId?de=Histórico', '06_resumo');
       await shot('/exercicio/${ids.remada}?de=Exercícios', '07_progresso');
 
@@ -137,6 +157,11 @@ void main() {
       // mudaria as telas anteriores.
       final live = await SessionRepository(db).startFromRoutine(ids.upper);
       await shot('/treino/$live', '08_sessao');
+      await tester.tap(find.text('Finalizar'));
+      await settleFrames();
+      await _capture(tester, key, '08b_dialogo_$suffix');
+      await tester.tap(find.text('Voltar'));
+      await settleFrames();
 
       router.go('/');
       await tester.pumpWidget(const SizedBox.shrink());

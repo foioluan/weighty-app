@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoSheetRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -233,11 +234,17 @@ Future<Exercise?> pickExercise(
   required String title,
   required IconData icon,
 }) {
+  // Folha, e não tela empurrada: escolher é uma tarefa que se conclui e
+  // volta, e a folha deixa o editor visível atrás, encolhido.
   return Navigator.push<Exercise>(
     context,
-    springRoute(
-      (_) =>
-          ExerciseCatalogPage(selecting: true, title: title, selectIcon: icon),
+    CupertinoSheetRoute<Exercise>(
+      scrollableBuilder: (_, controller) => ExerciseCatalogPage(
+        selecting: true,
+        title: title,
+        selectIcon: icon,
+        scrollController: controller,
+      ),
     ),
   );
 }
@@ -325,21 +332,25 @@ class _ExerciseCard extends ConsumerWidget {
                     children: [
                       Text(
                         detail.exercise.name,
-                        style: AppText.title3.copyWith(color: c.textPrimary),
+                        style: AppText.headline.copyWith(color: c.textPrimary),
                       ),
                       Text(
                         detail.exercise.muscleGroup.label,
-                        style: AppText.caption.copyWith(color: c.textTertiary),
+                        style: AppText.footnote.copyWith(
+                          color: c.textSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                AppIconButton(
-                  icon: LucideIcons.ellipsis,
-                  size: 18,
-                  tapSize: 38,
-                  label: 'Opções de ${detail.exercise.name}',
-                  onPressed: () => _openMenu(context, ref),
+                Builder(
+                  builder: (anchor) => AppIconButton(
+                    icon: LucideIcons.ellipsis,
+                    size: 20,
+                    tapSize: 40,
+                    label: 'Opções de ${detail.exercise.name}',
+                    onPressed: () => _openMenu(context, anchor, ref),
+                  ),
                 ),
               ],
             ),
@@ -374,54 +385,36 @@ class _ExerciseCard extends ConsumerWidget {
     ref.invalidate(routineSummariesProvider);
   }
 
-  Future<void> _openMenu(BuildContext context, WidgetRef ref) async {
-    final c = context.colors;
+  /// [anchor] é o contexto do botão `⋯`: o menu nasce dele, e não do card.
+  Future<void> _openMenu(
+    BuildContext context,
+    BuildContext anchor,
+    WidgetRef ref,
+  ) async {
     final hasSets = detail.sets.isNotEmpty;
 
-    final action = await showAppSheet<_ExerciseAction>(
-      context,
-      title: detail.exercise.name,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          Space.xxl,
-          Space.lg,
-          Space.xxl,
-          Space.xxl + MediaQuery.paddingOf(sheetContext).bottom,
+    final action = await showAppMenu<_ExerciseAction>(
+      anchor,
+      items: [
+        const AppMenuItem(
+          label: 'Substituir exercício',
+          icon: LucideIcons.repeat,
+          value: _ExerciseAction.replace,
         ),
-        child: InsetGroup(
-          children: [
-            AppRow(
-              title: 'Substituir exercício',
-              subtitle: 'Mantém as séries já configuradas',
-              leading: Icon(
-                LucideIcons.repeat,
-                size: 19,
-                color: c.textSecondary,
-              ),
-              onTap: () => Navigator.pop(sheetContext, _ExerciseAction.replace),
-            ),
-            if (hasSets)
-              AppRow(
-                title: 'Duplicar última série',
-                leading: Icon(
-                  LucideIcons.copyPlus,
-                  size: 19,
-                  color: c.textSecondary,
-                ),
-                onTap: () =>
-                    Navigator.pop(sheetContext, _ExerciseAction.duplicateLast),
-              ),
-            AppRow(
-              title: 'Remover do treino',
-              titleColor: c.down,
-              leading: Icon(LucideIcons.trash2, size: 19, color: c.down),
-              onTap: () => Navigator.pop(sheetContext, _ExerciseAction.remove),
-            ),
-          ],
+        if (hasSets)
+          const AppMenuItem(
+            label: 'Duplicar última série',
+            icon: LucideIcons.copyPlus,
+            value: _ExerciseAction.duplicateLast,
+          ),
+        const AppMenuItem(
+          label: 'Remover do treino',
+          icon: LucideIcons.trash2,
+          value: _ExerciseAction.remove,
+          isDestructive: true,
         ),
-      ),
+      ],
     );
-
     if (action == null || !context.mounted) return;
 
     switch (action) {

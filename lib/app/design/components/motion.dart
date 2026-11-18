@@ -87,9 +87,3 @@ class StaggeredEntry extends StatelessWidget {
 class SpringPage<T> extends CupertinoPage<T> {
   const SpringPage({required super.child, super.key});
 }
-
-/// A mesma transição para quem empurra a tela pelo Navigator em vez do
-/// go_router — o caso das telas que devolvem valor, como o catálogo em modo de
-/// escolha.
-Route<T> springRoute<T>(WidgetBuilder builder) =>
-    CupertinoPageRoute<T>(builder: builder);

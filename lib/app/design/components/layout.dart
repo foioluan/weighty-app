@@ -45,6 +45,7 @@ class AppScaffold extends StatefulWidget {
     this.slivers,
     this.bottomBar,
     this.banner,
+    this.scrollController,
   }) : assert(
          (body == null) != (slivers == null),
          'Passe body ou slivers, não os dois.',
@@ -90,6 +91,10 @@ class AppScaffold extends StatefulWidget {
 
   /// Faixa logo abaixo do topo (ex.: treino em andamento).
   final Widget? banner;
+
+  /// Controlador da lista de [slivers]. Existe para a folha de escolha de
+  /// exercício: ela precisa ligar a rolagem da lista ao arrasto de fechar.
+  final ScrollController? scrollController;
 
   @override
   State<AppScaffold> createState() => _AppScaffoldState();
@@ -149,6 +154,7 @@ class _AppScaffoldState extends State<AppScaffold> {
         banner: w.banner,
         slivers: w.slivers!,
         bottomBar: w.bottomBar,
+        controller: w.scrollController,
       );
     } else {
       content = SafeArea(
@@ -212,6 +218,7 @@ class _SliverLayout extends StatelessWidget {
     required this.banner,
     required this.slivers,
     required this.bottomBar,
+    required this.controller,
   });
 
   final ValueListenable<double> offset;
@@ -221,6 +228,7 @@ class _SliverLayout extends StatelessWidget {
   final Widget? banner;
   final List<Widget> slivers;
   final Widget? bottomBar;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +241,7 @@ class _SliverLayout extends StatelessWidget {
         NotificationListener<ScrollNotification>(
           onNotification: onScroll,
           child: CustomScrollView(
+            controller: controller,
             slivers: [
               SliverToBoxAdapter(child: SizedBox(height: top)),
               if (header != null) SliverToBoxAdapter(child: header),

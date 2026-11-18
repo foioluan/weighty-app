@@ -16,9 +16,14 @@ class ExerciseCatalogPage extends ConsumerStatefulWidget {
     this.selecting = false,
     this.title = 'Escolher exercício',
     this.selectIcon = LucideIcons.plus,
+    this.scrollController,
   });
 
   final bool selecting;
+
+  /// Vem da folha de escolha: liga a rolagem da lista ao arrasto que fecha a
+  /// folha.
+  final ScrollController? scrollController;
 
   /// Título da barra em modo de escolha — muda conforme o motivo da escolha
   /// (adicionar um exercício ao treino, ou substituir um que já está lá).
@@ -69,7 +74,18 @@ class _ExerciseCatalogPageState extends ConsumerState<ExerciseCatalogPage> {
     return AppScaffold(
       largeTitle: widget.selecting ? null : 'Exercícios',
       title: widget.selecting ? widget.title : null,
-      showBack: widget.selecting,
+      // Em modo de escolha a tela é uma folha: sai pelo X ou arrastando para
+      // baixo, não por um voltar.
+      showBack: false,
+      actions: [
+        if (widget.selecting)
+          AppNavIcon(
+            icon: LucideIcons.x,
+            label: 'Fechar',
+            onTap: () => Navigator.maybePop(context),
+          ),
+      ],
+      scrollController: widget.scrollController,
       slivers: [
         SliverToBoxAdapter(
           child: Padding(

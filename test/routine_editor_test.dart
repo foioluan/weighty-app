@@ -173,17 +173,21 @@ void main() {
       expect(find.text('Duplicar última série'), findsOneWidget);
       expect(find.text('Remover do treino'), findsOneWidget);
 
-      // A folha abraça as três linhas em vez de ocupar a tela toda. Só
-      // apareceu no aparelho: o Column do InsetGroup esticava sempre que a
-      // altura era limitada, e numa lista ela nunca é.
-      final sheet = tester.getRect(
-        find.ancestor(
-          of: find.text('Substituir exercício'),
-          matching: find.byType(InsetGroup),
-        ),
+      // O menu abraça as três linhas e nasce junto do botão que o abriu — e
+      // não lá embaixo, como a folha que ele substituiu.
+      final menu = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Substituir exercício'),
+              matching: find.byType(GlassSurface),
+            )
+            .first,
       );
+      final button = tester.getRect(find.byIcon(LucideIcons.ellipsis));
       final screen = tester.getRect(find.byType(MaterialApp));
-      expect(sheet.height, lessThan(screen.height / 2));
+      expect(menu.height, lessThan(screen.height / 3));
+      expect((menu.top - button.bottom).abs(), lessThan(24));
+      expect(menu.right, closeTo(button.right, 24));
 
       await teardownTree(tester);
     });
