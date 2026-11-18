@@ -13,9 +13,11 @@ coisas para a diferença continuar sendo uma decisão e não um descuido.
 ## Como funciona
 
 Você monta treinos (Upper 1, Lower 1, ...), escolhe os exercícios e as séries
-de cada um. Ao iniciar uma sessão, cada campo de carga já vem com o valor da
+de cada um. Ao iniciar uma sessão, a carga e as repetições já vêm com o valor da
 última vez em cinza — concluir a série sem digitar nada repete aquele valor.
-Assim que a série é concluída, aparece o delta (`+2,5 kg vs 67,5 × 9`).
+Enquanto você ajusta, a linha embaixo da carga já mostra a comparação
+(`última vez 75 × 7 · +2,5 kg`), e ela aparece de novo assim que a série é
+concluída.
 
 Trocar um exercício de lugar não custa recomeçar: o menu `⋯` do card tem
 **Substituir exercício**, que mantém as séries já configuradas. Isso vale porque
@@ -107,12 +109,13 @@ cartões sem borda de canto contínuo, tipografia do sistema.
 - **Cantos contínuos.** Toda superfície usa superelipse (`AppShapes`), não arco
   de círculo: cartão de 26, folha e alerta de 32. É a curva sem "quina" onde o
   arco encontra a reta que faz um canto grande parecer Apple.
-- **Uma ação cheia por app.** `AppButton` é pílula (raio = altura ÷ 2) e por
-  padrão tem a largura do conteúdo. `expand: true` aparece **uma vez** em todo o
-  código, em "Concluir série": é a única ação tocada com a mão suada, entre
-  séries, sem olhar a tela. Retângulo cheio de largura total é a silhueta do
-  botão do Material, e dar essa força a "Salvar" e "Criar treino" fazia tudo
-  parecer igualmente urgente.
+- **Uma ação cheia de largura total por tela, e só onde se age de pé.**
+  `AppButton` é pílula (raio = altura ÷ 2) e por padrão tem a largura do
+  conteúdo. `expand: true` fica para a base da sessão ("Concluir série" e o que
+  a substitui) e para "Iniciar treino" na página do treino: são as ações
+  tocadas com a mão suada, sem olhar a tela. Retângulo cheio de largura total é
+  a silhueta do botão do Material, e dar essa força a "Salvar" e "Criar treino"
+  fazia tudo parecer igualmente urgente.
 - **O título grande rola com a lista.** As telas montam o conteúdo em slivers
   pelo `AppScaffold`; o título grande é o primeiro deles e, quando sai de vista,
   reaparece pequeno e centralizado no topo. O topo não tem barra nem linha: é uma
@@ -190,23 +193,60 @@ que corrigiu o desalinhamento entre carga e repetições: um rótulo embaixo do
 campo faz a coluna crescer e, numa `Row` centralizada, empurra o input para
 cima.
 
+### Sessão
+
+Uma série por vez. As séries do exercício ficam numa fileira de pílulas —
+concluídas em verde, a de agora em bronze — e só a escolhida aparece em
+destaque: carga grande com − e + de 58 px, repetições logo abaixo com − e +. A
+versão anterior empilhava a série de agora num cartão e as outras em linhas
+apagadas embaixo: o olho tinha que achar a série certa no meio da lista, e as
+futuras, a 45%, pareciam desabilitadas.
+
+A ação mora na base, onde o polegar alcança, e muda com o momento: "Concluir
+série", "Desfazer conclusão" quando uma série concluída é escolhida (antes era
+um toque escondido na linha), "Próximo exercício" e "Finalizar treino". O
+próximo exercício fica numa cápsula de vidro acima dela, e o ☰ do topo lista
+todos com o progresso de cada um.
+
+Não há cronômetro de descanso, de propósito.
+
+### Teclado numérico
+
+Tocar num número — na sessão e no editor — abre `showNumberPad`, uma folha com
+o valor grande, teclas de 56 px e o atalho "usar última vez". O teclado do
+Android subia cobrindo meia tela, mudava de layout conforme o aparelho e
+escondia o campo que se estava editando. O primeiro toque substitui o valor que
+veio pronto, como no iOS. `showRangePad` faz o mesmo com "de" e "até".
+
 ### Editor de treino
 
-Cada série é um **chip**, não uma linha. Um exercício de 4×10 virava quatro
-linhas quase idênticas repetindo a palavra "Normal" — a maior massa visual da
-tela e a de menor informação. Em chip, o treino inteiro cabe numa tela e "4×10"
-se lê de relance. A cor carrega o tipo: aquecimento só com contorno (não conta
-para indicador nenhum), drop e cluster tingidos, normais em superfície de campo.
+O editor é a página do treino: "Iniciar treino" fica na base, e renomear e
+excluir moram no `⋯` do topo.
 
-As ações por exercício moram todas no `⋯` — substituir, duplicar a última série,
-remover. Antes eram um X no cabeçalho mais dois botões de texto no rodapé de
-**cada** card: com seis exercícios, doze botões na tela. Remover agora confirma,
-como já fazia excluir treino. O `⋯` abre um menu de vidro que nasce do próprio
-botão; a folha que subia da base levava o olho para longe do que foi tocado.
+Cada exercício mostra as séries resumidas numa linha — "aquecimento + 3 × 8–10
++ drop" —, com séries vizinhas iguais juntas. Antes eram chips, e "8-10 8-10
+8-10" repetia a mesma informação três vezes. Um exercício abre por vez, e
+aberto mostra uma linha por série, editável no lugar:
+
+- o **selo** (número, "aq" só com contorno, "D"/"C" tingidos) troca o tipo num
+  menu de vidro;
+- o **− e +** mexe nas repetições; numa faixa, ela anda inteira (8–10 → 9–11),
+  que é o ajuste de uma semana para a outra;
+- tocar no **número** abre o teclado;
+- **deslizar** apaga.
+
+Antes, qualquer ajuste abria uma folha com a lista de tipos, dois campos e dois
+botões. A série apagada por deslize sai da tela na hora, antes de o banco
+devolver o treino sem ela: o `Dismissible` exige isso, e esperar a recarga
+disparava um erro do Flutter.
+
+As ações por exercício moram no `⋯` do card — substituir, duplicar a última
+série, remover —, num menu de vidro que nasce do próprio botão. Remover
+confirma, como excluir treino.
 
 Reordenar é por **toque longo** no card, sem pegador visível, e o card arrastado
-só cresce 3% — o `proxyDecorator` padrão do `ReorderableListView` embrulha o item
-num Material com elevação, que é exatamente a sombra que denuncia Android padrão.
+só cresce 3% — o `proxyDecorator` padrão embrulha o item num Material com
+elevação, que é exatamente a sombra que denuncia Android padrão.
 
 ### Marca
 
